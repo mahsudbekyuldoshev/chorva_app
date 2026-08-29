@@ -53,6 +53,6 @@ class Follow(BaseModel):
         unique_together = ("follower", "following")
         constraints = [
             CheckConstraint(
-                check=~Q(follower=F("following")), name="cannot_follow_self"
+                condition=~Q(follower=F("following")), name="cannot_follow_self"
             )
         ]
