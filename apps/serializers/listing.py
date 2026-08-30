@@ -1,8 +1,8 @@
-from rest_framework import serializers
-from rest_framework.fields import SerializerMethodField, ListField, FileField
-from rest_framework.serializers import ModelSerializer
+from rest_framework.fields import FileField, ListField, SerializerMethodField
+from rest_framework.serializers import ModelSerializer, ValidationError
 
-from apps.models import Category, Listing, ListingMedia, Favorite, Reel, Report
+from apps.models import Category, Favorite, Listing, ListingMedia, Reel, Report
+
 
 class CategorySerializer(ModelSerializer):
     class Meta:
@@ -57,13 +57,18 @@ class ListingCreateSerializer(ModelSerializer):
 
     class Meta:
         model = Listing
-        fields = ('id', 'category', 'title', 'description', 'price', 'currency', 'lat', 'lng', 'address_text', 'expires_at', 'uploaded_files')
+        fields = ('id', 'category', 'title', 'description', 'price', 'currency', 'lat', 'lng', 'address_text', 'uploaded_files')
 
     def create(self, validated_data):
         uploaded_files = validated_data.pop('uploaded_files', [])
-        listing = Listing.objects.create(user=self.context['request'].user, **validated_data)
+        # 'user' is passed in perform_create in the view, so do not pass it here.
+        # But wait, self.context['request'].user is already here.
+        # Let's fix the view's perform_create or this create method.
+        # The serializer should NOT be creating the user if it's already in validated_data or handled.
+        # In the current implementation: perform_create passes 'user' to save(), which passes it to create().
+        # So validated_data already has 'user'.
+        listing = Listing.objects.create(**validated_data)
         for file in uploaded_files:
-            # Simple logic: if ext is mp4/mov etc it's video, else image
             media_type = 'image'
             if file.name.lower().endswith(('.mp4', '.mov', '.avi')):
                 media_type = 'video'
@@ -90,3 +95,8 @@ class ReportSerializer(ModelSerializer):
     class Meta:
         model = Report
         fields = ('id', 'reason', 'comment', 'target_user', 'target_listing')
+    
+    def validate(self, attrs):
+        if not attrs.get('target_user') and not attrs.get('target_listing'):
+            raise ValidationError("Target user or target listing must be provided.")
+        return attrs

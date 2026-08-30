@@ -1,4 +1,3 @@
-from django.db import models
 from django.db.models.constraints import CheckConstraint
 from django.db.models.deletion import CASCADE, SET_NULL
 from django.db.models.expressions import F

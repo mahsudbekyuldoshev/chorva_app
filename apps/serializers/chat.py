@@ -1,6 +1,5 @@
-from rest_framework import serializers
 from rest_framework.fields import SerializerMethodField
-from rest_framework.serializers import ModelSerializer
+from rest_framework.serializers import ModelSerializer, ValidationError
 
 from apps.models import Conversation, Message
 
@@ -36,12 +35,18 @@ class ConversationCreateSerializer(ModelSerializer):
         model = Conversation
         fields = ("id", "seller", "listing")
 
+    def validate(self, attrs):
+        user = self.context['request'].user
+        if attrs['seller'] == user:
+            raise ValidationError("You cannot create a conversation with yourself.")
+        return attrs
+
     def create(self, validated_data):
         buyer = self.context["request"].user
         seller = validated_data["seller"]
         listing = validated_data.get("listing")
 
-        conversation, created = Conversation.objects.get_or_create(
+        conversation, _ = Conversation.objects.get_or_create(
             buyer=buyer, seller=seller, listing=listing
         )
         return conversation

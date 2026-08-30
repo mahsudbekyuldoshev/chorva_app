@@ -1,5 +1,7 @@
 from django.db.models import Q
-from rest_framework.generics import ListCreateAPIView
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.generics import ListCreateAPIView, get_object_or_404
+from rest_framework.permissions import IsAuthenticated
 
 from apps.models import Conversation, Message, Notification
 from apps.permission import IsParticipant
@@ -11,6 +13,8 @@ from apps.serializers.chat import (
 
 
 class ConversationListCreateView(ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    
     def get_serializer_class(self):
         if self.request.method == "POST":
             return ConversationCreateSerializer
@@ -25,13 +29,20 @@ class ConversationListCreateView(ListCreateAPIView):
 
 class MessageListCreateView(ListCreateAPIView):
     serializer_class = MessageSerializer
-    permission_classes = [IsParticipant]
+    permission_classes = [IsAuthenticated, IsParticipant]
+
+    def get_conversation(self):
+        conversation = get_object_or_404(Conversation, pk=self.kwargs["conversation_id"])
+        if self.request.user != conversation.buyer and self.request.user != conversation.seller:
+            raise PermissionDenied("You are not a participant in this conversation.")
+        return conversation
 
     def get_queryset(self):
-        return Message.objects.filter(conversation_id=self.kwargs["conversation_id"])
+        conversation = self.get_conversation()
+        return Message.objects.filter(conversation=conversation)
 
     def perform_create(self, serializer):
-        conversation = Conversation.objects.get(id=self.kwargs["conversation_id"])
+        conversation = self.get_conversation()
         serializer.save(sender=self.request.user, conversation=conversation)
 
         # Create notification for recipient

@@ -19,7 +19,7 @@ class RequestOTPView(APIView):
         serializer.is_valid(raise_exception=True)
 
         phone = serializer.validated_data["phone"]
-        otp, error = generate_otp(phone)
+        _otp, error = generate_otp(phone)
 
         if error:
             return Response({"error": error}, status=status.HTTP_429_TOO_MANY_REQUESTS)
@@ -41,6 +41,9 @@ class VerifyOTPView(APIView):
 
         if verify_otp(phone, code):
             user, created = User.objects.get_or_create(phone=phone)
+            if created:
+                user.set_unusable_password()
+                user.save()
             refresh = RefreshToken.for_user(user)
             return Response(
                 {

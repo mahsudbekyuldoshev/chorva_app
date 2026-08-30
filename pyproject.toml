@@ -16,6 +16,7 @@ dependencies = [
     "whitenoise>=6.8",
     "django-cors-headers>=4.9.0",
     "djangorestframework-stubs>=3.18.1",
+    "django-redis>=5.4",
 ]
 
 [dependency-groups]
@@ -25,3 +26,14 @@ dev = [
     "factory-boy>=3.3",
     "ruff>=0.9",
 ]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "root.settings"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
+
+[tool.ruff]
+line-length = 120
+exclude = ['__init__.py']
+
+[tool.ruff.lint]
+ignore = ["RUF012"]

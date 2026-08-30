@@ -1,5 +1,5 @@
-from rest_framework import generics, status
 from rest_framework.generics import ListAPIView, UpdateAPIView
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.models import Notification
@@ -8,6 +8,7 @@ from apps.serializers.notification import NotificationSerializer
 
 class NotificationListView(ListAPIView):
     serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return Notification.objects.filter(user=self.request.user).order_by(
@@ -17,6 +18,7 @@ class NotificationListView(ListAPIView):
 
 class NotificationMarkReadView(UpdateAPIView):
     serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return Notification.objects.filter(user=self.request.user)

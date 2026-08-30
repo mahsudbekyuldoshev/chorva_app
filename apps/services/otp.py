@@ -1,4 +1,5 @@
 import random
+
 from django.core.cache import cache
 
 OTP_CODE_LENGTH = 4

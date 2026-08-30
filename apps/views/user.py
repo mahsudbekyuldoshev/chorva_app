@@ -1,12 +1,16 @@
-from rest_framework import generics, status
-from rest_framework.generics import RetrieveUpdateAPIView, RetrieveAPIView
+from rest_framework import status
+from rest_framework.generics import RetrieveAPIView, RetrieveUpdateAPIView
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from apps.models import User, Follow
+
+from apps.models import Follow, User
 from apps.serializers import MeSerializer, UserPublicSerializer
+
 
 class MeView(RetrieveUpdateAPIView):
     serializer_class = MeSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_object(self):
         return self.request.user
@@ -18,6 +22,8 @@ class UserPublicDetailView(RetrieveAPIView):
     lookup_field = 'id'
 
 class FollowToggleView(APIView):
+    permission_classes = [IsAuthenticated]
+    
     def post(self, request, id):
         try:
             target_user = User.objects.get(id=id)
