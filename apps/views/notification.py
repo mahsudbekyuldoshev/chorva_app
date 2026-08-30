@@ -1,11 +1,17 @@
 from rest_framework.generics import ListAPIView, UpdateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from apps.models import Notification
 from apps.serializers.notification import NotificationSerializer
 
 
+@extend_schema(
+    summary="Joriy foydalanuvchi bildirishnomalari ro'yxati",
+    responses={200: NotificationSerializer(many=True)},
+    tags=["Notifications"],
+)
 class NotificationListView(ListAPIView):
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
@@ -16,6 +22,12 @@ class NotificationListView(ListAPIView):
         )
 
 
+@extend_schema(
+    summary="Bildirishnomani o'qilgan deb belgilash",
+    request=None,
+    responses={200: OpenApiResponse(description="Bildirishnoma o'qilgan deb belgilandi")},
+    tags=["Notifications"],
+)
 class NotificationMarkReadView(UpdateAPIView):
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]

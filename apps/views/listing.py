@@ -7,6 +7,7 @@ from drf_spectacular.utils import (
     OpenApiTypes,
     extend_schema,
     extend_schema_view,
+    OpenApiResponse,
 )
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import action
@@ -37,27 +38,79 @@ def haversine(lon1, lat1, lon2, lat2):
     r = 6371
     return c * r
 
+@extend_schema(
+    summary="Kategoriyalar ro'yxati",
+    responses={200: CategorySerializer(many=True)},
+    tags=["Listings"],
+)
 class CategoryListView(generics.ListAPIView):
     queryset = Category.objects.all().order_by("sort_order")
     serializer_class = CategorySerializer
     permission_classes = []
 
 @extend_schema_view(
-    list=extend_schema(summary="E'lonlar ro'yxatini olish", tags=["Listings"]),
-    retrieve=extend_schema(summary="E'lon tafsilotlarini olish", tags=["Listings"]),
-    create=extend_schema(summary="Yangi e'lon yaratish", tags=["Listings"]),
-    update=extend_schema(summary="E'lonni yangilash", tags=["Listings"]),
-    partial_update=extend_schema(summary="E'lonni qisman yangilash", tags=["Listings"]),
-    destroy=extend_schema(summary="E'lonni o'chirish", tags=["Listings"]),
-    favorite=extend_schema(summary="E'lonni sevimlilarga qo'shish/o'chirish", tags=["Listings"]),
-    map=extend_schema(
-        summary="Xaritada e'lonlarni ko'rish",
+    list=extend_schema(
+        summary="E'lonlar ro'yxatini olish (faqat faol e'lonlar)",
+        responses={200: ListingListSerializer(many=True)},
         tags=["Listings"],
+    ),
+    retrieve=extend_schema(
+        summary="E'lon tafsilotlarini olish",
+        responses={
+            200: ListingDetailSerializer,
+            404: OpenApiResponse(description="Topilmadi (masalan boshqa userning pending e'loni)"),
+        },
+        tags=["Listings"],
+    ),
+    create=extend_schema(
+        summary="Yangi e'lon yaratish",
+        request=ListingCreateSerializer,
+        responses={
+            201: ListingCreateSerializer,
+            400: OpenApiResponse(description="Noto'g'ri ma'lumot"),
+            403: OpenApiResponse(description="Faqat tasdiqlangan (is_verified) foydalanuvchilar e'lon yarata oladi"),
+        },
+        tags=["Listings"],
+    ),
+    update=extend_schema(
+        summary="E'lonni to'liq yangilash",
+        request=ListingCreateSerializer,
+        responses={
+            200: ListingCreateSerializer,
+            403: OpenApiResponse(description="Faqat egasi tahrirlashi mumkin"),
+            404: OpenApiResponse(description="Topilmadi"),
+        },
+        tags=["Listings"],
+    ),
+    partial_update=extend_schema(
+        summary="E'lonni qisman yangilash",
+        request=ListingCreateSerializer,
+        responses={200: ListingCreateSerializer, 403: OpenApiResponse(description="Faqat egasi tahrirlashi mumkin")},
+        tags=["Listings"],
+    ),
+    destroy=extend_schema(
+        summary="E'lonni o'chirish",
+        responses={204: OpenApiResponse(description="O'chirildi"), 403: OpenApiResponse(description="Faqat egasi o'chira oladi")},
+        tags=["Listings"],
+    ),
+    favorite=extend_schema(
+        summary="E'lonni sevimlilarga qo'shish (POST) / o'chirish (DELETE)",
+        request=None,
+        responses={
+            201: OpenApiResponse(description="Sevimlilarga qo'shildi"),
+            204: OpenApiResponse(description="Sevimlilardan o'chirildi"),
+        },
+        tags=["Listings"],
+    ),
+    map=extend_schema(
+        summary="Xaritada e'lonlarni ko'rish (radius bo'yicha)",
         parameters=[
-            OpenApiParameter("lat", OpenApiTypes.FLOAT, OpenApiParameter.QUERY),
-            OpenApiParameter("lng", OpenApiTypes.FLOAT, OpenApiParameter.QUERY),
-            OpenApiParameter("radius_km", OpenApiTypes.FLOAT, OpenApiParameter.QUERY),
+            OpenApiParameter("lat", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Markaziy nuqta kengligi"),
+            OpenApiParameter("lng", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Markaziy nuqta uzunligi"),
+            OpenApiParameter("radius_km", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Radius (km), standart 10"),
         ],
+        responses={200: ListingListSerializer(many=True)},
+        tags=["Listings"],
     ),
 )
 class ListingViewSet(ModelViewSet):
@@ -130,6 +183,11 @@ class ListingViewSet(ModelViewSet):
 
 
 
+@extend_schema(
+    summary="Joriy foydalanuvchi sevimli e'lonlari",
+    responses={200: FavoriteSerializer(many=True)},
+    tags=["Listings"],
+)
 class FavoriteListView(generics.ListAPIView):
     serializer_class = FavoriteSerializer
 
@@ -137,6 +195,20 @@ class FavoriteListView(generics.ListAPIView):
         return Favorite.objects.filter(user=self.request.user).order_by("-created_at")
 
 
+@extend_schema_view(
+    list=extend_schema(summary="Reels ro'yxati", tags=["Reels"]),
+    retrieve=extend_schema(summary="Reel tafsilotlari", tags=["Reels"]),
+    create=extend_schema(summary="Yangi reel yuklash", tags=["Reels"]),
+    update=extend_schema(summary="Reelni yangilash", tags=["Reels"]),
+    partial_update=extend_schema(summary="Reelni qisman yangilash", tags=["Reels"]),
+    destroy=extend_schema(summary="Reelni o'chirish", tags=["Reels"]),
+    view=extend_schema(
+        summary="Reel ko'rishlar sonini oshirish",
+        request=None,
+        responses={200: OpenApiResponse(description="Ko'rishlar soni oshirildi")},
+        tags=["Reels"],
+    ),
+)
 class ReelViewSet(ModelViewSet):
     queryset = Reel.objects.all().order_by("-created_at")
     serializer_class = ReelSerializer
@@ -152,6 +224,15 @@ class ReelViewSet(ModelViewSet):
         return Response({"status": "view counted"})
 
 
+@extend_schema(
+    summary="Foydalanuvchi yoki e'lon haqida shikoyat yuborish",
+    request=ReportSerializer,
+    responses={
+        201: ReportSerializer,
+        400: OpenApiResponse(description="target_user yoki target_listing dan kamida bittasi berilishi shart"),
+    },
+    tags=["Reports"],
+)
 class ReportCreateView(generics.CreateAPIView):
     queryset = Report.objects.all()
     serializer_class = ReportSerializer

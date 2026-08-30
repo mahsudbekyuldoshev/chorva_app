@@ -1,4 +1,5 @@
 from django.db.models import Q
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiTypes, OpenApiResponse
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import ListCreateAPIView, get_object_or_404
 from rest_framework.permissions import IsAuthenticated
@@ -12,9 +13,25 @@ from apps.serializers.chat import (
 )
 
 
+@extend_schema_view(
+    get=extend_schema(
+        summary="Joriy foydalanuvchining suhbatlari ro'yxati",
+        responses={200: ConversationSerializer(many=True)},
+        tags=["Chat"],
+    ),
+    post=extend_schema(
+        summary="Yangi suhbat boshlash",
+        request=ConversationCreateSerializer,
+        responses={
+            201: ConversationSerializer,
+            400: OpenApiResponse(description="O'zingiz bilan suhbat ochib bo'lmaydi"),
+        },
+        tags=["Chat"],
+    ),
+)
 class ConversationListCreateView(ListCreateAPIView):
     permission_classes = [IsAuthenticated]
-    
+
     def get_serializer_class(self):
         if self.request.method == "POST":
             return ConversationCreateSerializer
@@ -27,6 +44,27 @@ class ConversationListCreateView(ListCreateAPIView):
         )
 
 
+@extend_schema_view(
+    get=extend_schema(
+        summary="Suhbatdagi xabarlar tarixi",
+        parameters=[OpenApiParameter("conversation_id", OpenApiTypes.UUID, OpenApiParameter.PATH)],
+        responses={
+            200: MessageSerializer(many=True),
+            403: OpenApiResponse(description="Bu suhbat ishtirokchisi emassiz"),
+        },
+        tags=["Chat"],
+    ),
+    post=extend_schema(
+        summary="Suhbatga yangi xabar yozish",
+        request=MessageSerializer,
+        parameters=[OpenApiParameter("conversation_id", OpenApiTypes.UUID, OpenApiParameter.PATH)],
+        responses={
+            201: MessageSerializer,
+            403: OpenApiResponse(description="Bu suhbat ishtirokchisi emassiz"),
+        },
+        tags=["Chat"],
+    ),
+)
 class MessageListCreateView(ListCreateAPIView):
     serializer_class = MessageSerializer
     permission_classes = [IsAuthenticated, IsParticipant]
@@ -57,4 +95,4 @@ class MessageListCreateView(ListCreateAPIView):
             title="New message",
             body=serializer.validated_data["text"][:100],
         )
-        conversation.save()  # Update updated_at
+        conversation.save()
