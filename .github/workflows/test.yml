@@ -58,5 +58,10 @@ jobs:
     - name: Run linting
       run: uv run ruff check .
 
+    - name: Generate and apply migrations
+      run: |
+        uv run python manage.py makemigrations
+        uv run python manage.py migrate
+
     - name: Run tests
       run: uv run pytest apps/tests/
