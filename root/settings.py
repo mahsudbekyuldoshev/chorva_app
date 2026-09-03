@@ -30,6 +30,7 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = True
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -40,6 +41,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',
     'drf_spectacular',
+    'channels',
     'apps',
 ]
 
@@ -81,6 +83,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'root.wsgi.application'
+ASGI_APPLICATION = "root.asgi.application"
 
 # Database
 DATABASES = {
@@ -233,10 +236,23 @@ CACHES = {
     }
 }
 
-# Use LocMemCache during testing
+# Channel layers configuration
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {"hosts": [os.getenv("REDIS_URL", "redis://127.0.0.1:6379/1")]},
+    }
+}
+
+# Use LocMemCache/InMemoryChannelLayer during testing
 if "pytest" in sys.modules:
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
+    }
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
         }
     }

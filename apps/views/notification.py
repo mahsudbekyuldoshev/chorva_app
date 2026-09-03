@@ -1,7 +1,7 @@
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework.generics import ListAPIView, UpdateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from apps.models import Notification
 from apps.serializers.notification import NotificationSerializer

@@ -1,5 +1,5 @@
 from django.db.models import Q
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiTypes, OpenApiResponse
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema, extend_schema_view
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import ListCreateAPIView, get_object_or_404
 from rest_framework.permissions import IsAuthenticated
