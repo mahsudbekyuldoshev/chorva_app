@@ -10,7 +10,7 @@ ChorvaBor — chorva mollari va uy hayvonlari e'lonlari mobil ilovasi uchun back
 - Sevimlilar, obuna (follow), Reels
 - Real-time xabar almashish (WebSocket)
 - Bildirishnomalar, shikoyat tizimi
-- To'liq API hujjatlari (Swagger/OpenAPI)
+- To'liq API hujjatlari
 
 ## Texnologiyalar
 
