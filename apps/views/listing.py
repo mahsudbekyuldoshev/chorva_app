@@ -11,7 +11,7 @@ from drf_spectacular.utils import (
 )
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -144,10 +144,35 @@ class ListingViewSet(ModelViewSet):
         return ListingListSerializer
 
     def perform_create(self, serializer):
+        user = self.request.user
+        plan = user.current_plan
+
+        if plan:
+            active_count = Listing.objects.filter(
+                user=user, status__in=["pending", "active"]
+            ).count()
+            if active_count >= plan.max_active_listings:
+                raise ValidationError(
+                    f"Tarifingiz bo'yicha maksimal {plan.max_active_listings} ta "
+                    "aktiv e'lon joylashtirish mumkin."
+                )
+
+            month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            monthly_count = Listing.objects.filter(user=user, created_at__gte=month_start).count()
+            if monthly_count >= plan.max_monthly_new_listings:
+                raise ValidationError(
+                    f"Tarifingiz bo'yicha oyiga maksimal {plan.max_monthly_new_listings} "
+                    "ta yangi e'lon joylashtirish mumkin."
+                )
+
+            expires_days = plan.listing_duration_days
+        else:
+            expires_days = 30  # plan topilmasa (kutilmagan holat), standart
+
         serializer.save(
-            user=self.request.user,
+            user=user,
             status="pending",
-            expires_at=timezone.now() + timedelta(days=30)
+            expires_at=timezone.now() + timedelta(days=expires_days),
         )
 
     @action(detail=True, methods=["post", "delete"])

@@ -67,6 +67,10 @@ class VerifyOTPView(APIView):
             if created:
                 user.set_unusable_password()
                 user.save()
+                from apps.models import Plan, Subscription
+                free_plan = Plan.objects.filter(slug="free").first()
+                if free_plan:
+                    Subscription.objects.create(user=user, plan=free_plan, expires_at=None)
             refresh = RefreshToken.for_user(user)
             return Response(
                 {

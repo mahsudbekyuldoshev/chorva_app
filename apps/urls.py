@@ -12,6 +12,7 @@ from apps.views.listing import (
     ReportCreateView,
 )
 from apps.views.notification import NotificationListView, NotificationMarkReadView
+from apps.views.plan import PlanListView
 from apps.views.user import FollowToggleView, MeView, UserPublicDetailView
 
 router = DefaultRouter()
@@ -40,6 +41,7 @@ urlpatterns = [
     # Notifications
     path('notifications/', NotificationListView.as_view(), name='notification-list'),
     path('notifications/<uuid:pk>/read/', NotificationMarkReadView.as_view(), name='notification-read'),
+    path('plans/', PlanListView.as_view(), name='plan-list'),
 
     # Router URLs
     path('', include(router.urls)),

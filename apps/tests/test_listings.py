@@ -1,11 +1,19 @@
 from datetime import timedelta
 
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 
-from apps.models import Favorite, Listing
+from apps.models import Favorite, Listing, Plan, Subscription
+
+
+def _fake_image(name="photo.jpg"):
+    return SimpleUploadedFile(name, b"fake-image-content", content_type="image/jpeg")
+
+def _fake_video(name="video.mp4"):
+    return SimpleUploadedFile(name, b"fake-video-content", content_type="video/mp4")
 
 
 @pytest.mark.django_db
@@ -131,3 +139,63 @@ def test_other_user_cannot_update_listing(api_client, other_user, user, category
     
     response = api_client.put(url, data)
     assert response.status_code == status.HTTP_403_FORBIDDEN
+
+@pytest.mark.django_db
+def test_listing_photo_limit_enforced(auth_client, verified_user, category):
+    plan = Plan.objects.create(
+        name="Free", slug="free", price=0, billing_period_days=30,
+        max_active_listings=10, max_monthly_new_listings=10,
+        max_photos_per_listing=2, max_videos_per_listing=1,
+        listing_duration_days=30, reboost_interval_days=3,
+    )
+    Subscription.objects.create(user=verified_user, plan=plan)
+    auth_client.force_authenticate(user=verified_user)
+
+    data = {
+        "category": category.id, "title": "Test", "description": "D", "price": 100,
+        "lat": 0, "lng": 0, "address_text": "A",
+        "uploaded_files": [_fake_image("a.jpg"), _fake_image("b.jpg"), _fake_image("c.jpg")],
+    }
+    response = auth_client.post(reverse('listing-list'), data, format="multipart")
+
+    assert response.status_code == 400
+
+@pytest.mark.django_db
+def test_listing_video_limit_enforced(auth_client, verified_user, category):
+    plan = Plan.objects.create(
+        name="Free", slug="free", price=0, billing_period_days=30,
+        max_active_listings=10, max_monthly_new_listings=10,
+        max_photos_per_listing=6, max_videos_per_listing=1,
+        listing_duration_days=30, reboost_interval_days=3,
+    )
+    Subscription.objects.create(user=verified_user, plan=plan)
+    auth_client.force_authenticate(user=verified_user)
+
+    data = {
+        "category": category.id, "title": "Test", "description": "D", "price": 100,
+        "lat": 0, "lng": 0, "address_text": "A",
+        "uploaded_files": [_fake_video("a.mp4"), _fake_video("b.mp4")],
+    }
+    response = auth_client.post(reverse('listing-list'), data, format="multipart")
+
+    assert response.status_code == 400
+
+@pytest.mark.django_db
+def test_listing_within_media_limits_succeeds(auth_client, verified_user, category):
+    plan = Plan.objects.create(
+        name="Free", slug="free", price=0, billing_period_days=30,
+        max_active_listings=10, max_monthly_new_listings=10,
+        max_photos_per_listing=2, max_videos_per_listing=1,
+        listing_duration_days=30, reboost_interval_days=3,
+    )
+    Subscription.objects.create(user=verified_user, plan=plan)
+    auth_client.force_authenticate(user=verified_user)
+
+    data = {
+        "category": category.id, "title": "Test", "description": "D", "price": 100,
+        "lat": 0, "lng": 0, "address_text": "A",
+        "uploaded_files": [_fake_image("a.jpg"), _fake_video("v.mp4")],
+    }
+    response = auth_client.post(reverse('listing-list'), data, format="multipart")
+
+    assert response.status_code == 201

@@ -1,3 +1,4 @@
+from rest_framework import serializers
 from rest_framework.fields import CharField
 from rest_framework.serializers import ModelSerializer, Serializer
 
@@ -21,6 +22,9 @@ class UserPublicSerializer(ModelSerializer):
 
 
 class MeSerializer(ModelSerializer):
+    current_plan = serializers.SerializerMethodField()
+    plan_expires_at = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = (
@@ -32,5 +36,16 @@ class MeSerializer(ModelSerializer):
             "is_vip",
             "language",
             "dark_mode",
+            "role",
+            "current_plan",
+            "plan_expires_at",
         )
-        read_only_fields = ("phone", "is_verified", "is_vip")
+        read_only_fields = ("phone", "is_verified", "is_vip", "role")
+
+    def get_current_plan(self, obj):
+        plan = obj.current_plan
+        return plan.name if plan else None
+
+    def get_plan_expires_at(self, obj):
+        sub = obj.active_subscription
+        return sub.expires_at if sub else None

@@ -3,6 +3,7 @@ from django.contrib.auth.models import (
     BaseUserManager,
     PermissionsMixin,
 )
+from django.db.models import TextChoices
 from django.db.models.constraints import CheckConstraint
 from django.db.models.deletion import CASCADE
 from django.db.models.expressions import F
@@ -30,11 +31,17 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin, BaseModel):
+    class Role(TextChoices):
+        USER = "user", "Oddiy foydalanuvchi"
+        ADMIN = "admin", "Admin"
+        SUPER_ADMIN = "super_admin", "Super admin"
+
     phone = CharField(max_length=15, unique=True)
     full_name = CharField(max_length=255, blank=True)
     avatar = ImageField(upload_to="avatars/", null=True, blank=True)
     is_verified = BooleanField(default=False)
     is_vip = BooleanField(default=False)
+    role = CharField(max_length=20, choices=Role.choices, default=Role.USER)
     language = CharField(max_length=5, default="uz")
     dark_mode = BooleanField(default=False)
     is_staff = BooleanField(default=False)
@@ -43,6 +50,21 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
 
     USERNAME_FIELD = "phone"
     REQUIRED_FIELDS = []
+
+    def save(self, *args, **kwargs):
+        if self.role == self.Role.SUPER_ADMIN:
+            self.is_staff = True
+            self.is_superuser = True
+        super().save(*args, **kwargs)
+
+    @property
+    def active_subscription(self):
+        return self.subscriptions.filter(is_active=True).order_by("-started_at").first()
+
+    @property
+    def current_plan(self):
+        sub = self.active_subscription
+        return sub.plan if sub else None
 
 
 class Follow(BaseModel):
