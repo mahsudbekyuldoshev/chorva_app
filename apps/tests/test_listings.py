@@ -141,61 +141,136 @@ def test_other_user_cannot_update_listing(api_client, other_user, user, category
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
 @pytest.mark.django_db
-def test_listing_photo_limit_enforced(auth_client, verified_user, category):
+def test_listing_photo_limit_enforced(api_client, verified_user, category):
     plan = Plan.objects.create(
         name="Free", slug="free", price=0, billing_period_days=30,
         max_active_listings=10, max_monthly_new_listings=10,
         max_photos_per_listing=2, max_videos_per_listing=1,
-        listing_duration_days=30, reboost_interval_days=3,
+        listing_duration_days=30, reboost_interval_days=3, auto_listing_type="normal"
     )
     Subscription.objects.create(user=verified_user, plan=plan)
-    auth_client.force_authenticate(user=verified_user)
+    api_client.force_authenticate(user=verified_user)
 
     data = {
         "category": category.id, "title": "Test", "description": "D", "price": 100,
         "lat": 0, "lng": 0, "address_text": "A",
         "uploaded_files": [_fake_image("a.jpg"), _fake_image("b.jpg"), _fake_image("c.jpg")],
     }
-    response = auth_client.post(reverse('listing-list'), data, format="multipart")
+    response = api_client.post(reverse('listing-list'), data, format="multipart")
 
     assert response.status_code == 400
 
 @pytest.mark.django_db
-def test_listing_video_limit_enforced(auth_client, verified_user, category):
+def test_listing_video_limit_enforced(api_client, verified_user, category):
     plan = Plan.objects.create(
         name="Free", slug="free", price=0, billing_period_days=30,
         max_active_listings=10, max_monthly_new_listings=10,
         max_photos_per_listing=6, max_videos_per_listing=1,
-        listing_duration_days=30, reboost_interval_days=3,
+        listing_duration_days=30, reboost_interval_days=3, auto_listing_type="normal"
     )
     Subscription.objects.create(user=verified_user, plan=plan)
-    auth_client.force_authenticate(user=verified_user)
+    api_client.force_authenticate(user=verified_user)
 
     data = {
         "category": category.id, "title": "Test", "description": "D", "price": 100,
         "lat": 0, "lng": 0, "address_text": "A",
         "uploaded_files": [_fake_video("a.mp4"), _fake_video("b.mp4")],
     }
-    response = auth_client.post(reverse('listing-list'), data, format="multipart")
+    response = api_client.post(reverse('listing-list'), data, format="multipart")
 
     assert response.status_code == 400
 
 @pytest.mark.django_db
-def test_listing_within_media_limits_succeeds(auth_client, verified_user, category):
+def test_listing_within_media_limits_succeeds(api_client, verified_user, category):
     plan = Plan.objects.create(
         name="Free", slug="free", price=0, billing_period_days=30,
         max_active_listings=10, max_monthly_new_listings=10,
         max_photos_per_listing=2, max_videos_per_listing=1,
-        listing_duration_days=30, reboost_interval_days=3,
+        listing_duration_days=30, reboost_interval_days=3, auto_listing_type="normal"
     )
     Subscription.objects.create(user=verified_user, plan=plan)
-    auth_client.force_authenticate(user=verified_user)
+    api_client.force_authenticate(user=verified_user)
 
     data = {
         "category": category.id, "title": "Test", "description": "D", "price": 100,
         "lat": 0, "lng": 0, "address_text": "A",
         "uploaded_files": [_fake_image("a.jpg"), _fake_video("v.mp4")],
     }
-    response = auth_client.post(reverse('listing-list'), data, format="multipart")
+    response = api_client.post(reverse('listing-list'), data, format="multipart")
 
     assert response.status_code == 201
+
+@pytest.mark.django_db
+def test_pro_plan_listing_gets_vip_type(api_client, verified_user, category):
+    plan = Plan.objects.create(
+        name="Pro", slug="pro", price=49000, billing_period_days=30,
+        max_active_listings=15, max_monthly_new_listings=30,
+        max_photos_per_listing=8, max_videos_per_listing=2,
+        listing_duration_days=45, reboost_interval_days=1,
+        auto_listing_type="vip",
+    )
+    Subscription.objects.create(user=verified_user, plan=plan)
+    api_client.force_authenticate(user=verified_user)
+
+    response = api_client.post(reverse('listing-list'), {
+        "category": category.id, "title": "Test", "description": "D", "price": 100,
+        "lat": 0, "lng": 0, "address_text": "A",
+    })
+
+    assert response.status_code == 201
+    listing = Listing.objects.get(id=response.data['id'])
+    assert listing.listing_type == "vip"
+
+@pytest.mark.django_db
+def test_free_plan_listing_stays_normal(api_client, verified_user, category):
+    plan = Plan.objects.create(
+        name="Free", slug="free", price=0, billing_period_days=30,
+        max_active_listings=3, max_monthly_new_listings=2,
+        max_photos_per_listing=6, max_videos_per_listing=1,
+        listing_duration_days=30, reboost_interval_days=3,
+        auto_listing_type="normal",
+    )
+    Subscription.objects.create(user=verified_user, plan=plan)
+    api_client.force_authenticate(user=verified_user)
+
+    response = api_client.post(reverse('listing-list'), {
+        "category": category.id, "title": "Test", "description": "D", "price": 100,
+        "lat": 0, "lng": 0, "address_text": "A",
+    })
+
+    assert response.status_code == 201
+    listing = Listing.objects.get(id=response.data['id'])
+    assert listing.listing_type == "normal"
+
+@pytest.mark.django_db
+def test_list_orders_top_then_vip_then_normal(api_client, verified_user, category):
+    common = {
+        "user": verified_user, "category": category, "description": "D", "price": 100,
+        "lat": 0, "lng": 0, "address_text": "A", "status": "active",
+        "expires_at": timezone.now() + timedelta(days=30),
+    }
+    Listing.objects.create(title="Oddiy", listing_type="normal", **common)
+    Listing.objects.create(title="Vip", listing_type="vip", **common)
+    Listing.objects.create(title="Top", listing_type="top", **common)
+
+    response = api_client.get(reverse('listing-list'))
+
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.data["results"]]
+    assert titles == ["Top", "Vip", "Oddiy"]
+
+@pytest.mark.django_db
+def test_list_ordering_by_price_respects_type_priority(api_client, verified_user, category):
+    common = {
+        "user": verified_user, "category": category, "description": "D",
+        "lat": 0, "lng": 0, "address_text": "A", "status": "active",
+        "expires_at": timezone.now() + timedelta(days=30),
+    }
+    Listing.objects.create(title="Top qimmat", listing_type="top", price=5000, **common)
+    Listing.objects.create(title="Oddiy arzon", listing_type="normal", price=100, **common)
+
+    response = api_client.get(reverse('listing-list'), {"ordering": "price"})
+
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.data["results"]]
+    assert titles == ["Top qimmat", "Oddiy arzon"]

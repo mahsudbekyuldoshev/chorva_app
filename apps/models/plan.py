@@ -14,11 +14,21 @@ from apps.models.base import BaseModel
 
 
 class Plan(BaseModel):
+    LISTING_TYPE_CHOICES = (
+        ("normal", "Normal"),
+        ("top", "Top"),
+        ("vip", "Vip"),
+    )
+
     name = CharField(max_length=50, unique=True)
     slug = SlugField(max_length=50, unique=True)
     price = DecimalField(max_digits=12, decimal_places=2, default=0)
     original_price = DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     billing_period_days = PositiveIntegerField(help_text="To'lov davri kunlarda (masalan 30 yoki 365)")
+    auto_listing_type = CharField(
+        max_length=10, choices=LISTING_TYPE_CHOICES, default="normal",
+        help_text="Shu tarifdagi foydalanuvchi yaratgan e'lon avtomatik oladigan tur",
+    )
 
     max_active_listings = PositiveIntegerField()
     max_monthly_new_listings = PositiveIntegerField()

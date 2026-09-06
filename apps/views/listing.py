@@ -1,6 +1,7 @@
 from datetime import timedelta
 from math import asin, cos, radians, sin, sqrt
 
+from django.db.models import Case, IntegerField, Value, When
 from django.utils import timezone
 from drf_spectacular.utils import (
     OpenApiParameter,
@@ -28,7 +29,6 @@ from apps.serializers import (
 )
 
 
-# ... (haversine remains same) ...
 def haversine(lon1, lat1, lon2, lat2):
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
     dlon = lon2 - lon1
@@ -37,6 +37,7 @@ def haversine(lon1, lat1, lon2, lat2):
     c = 2 * asin(sqrt(a))
     r = 6371
     return c * r
+
 
 @extend_schema(
     summary="Kategoriyalar ro'yxati",
@@ -47,6 +48,7 @@ class CategoryListView(generics.ListAPIView):
     queryset = Category.objects.all().order_by("sort_order")
     serializer_class = CategorySerializer
     permission_classes = []
+
 
 @extend_schema_view(
     list=extend_schema(
@@ -125,7 +127,42 @@ class ListingViewSet(ModelViewSet):
 
     def get_queryset(self):
         if self.action == "list":
-            return Listing.objects.filter(status="active").order_by("-created_at")
+            queryset = Listing.objects.filter(status="active")
+            params = self.request.query_params
+
+            category = params.get("category")
+            if category:
+                queryset = queryset.filter(category_id=category)
+
+            min_price = params.get("min_price")
+            if min_price:
+                try:
+                    queryset = queryset.filter(price__gte=float(min_price))
+                except ValueError:
+                    raise ValidationError({"min_price": "Noto'g'ri son formati."})
+
+            max_price = params.get("max_price")
+            if max_price:
+                try:
+                    queryset = queryset.filter(price__lte=float(max_price))
+                except ValueError:
+                    raise ValidationError({"max_price": "Noto'g'ri son formati."})
+
+            queryset = queryset.annotate(
+                type_rank=Case(
+                    When(listing_type="top", then=Value(0)),
+                    When(listing_type="vip", then=Value(1)),
+                    default=Value(2),
+                    output_field=IntegerField(),
+                )
+            )
+
+            ordering = params.get("ordering")
+            allowed_orderings = {"price", "-price", "created_at", "-created_at"}
+            secondary_ordering = ordering if ordering in allowed_orderings else "-created_at"
+
+            return queryset.order_by("type_rank", secondary_ordering)
+
         return Listing.objects.all()
 
     def retrieve(self, request, *args, **kwargs):
@@ -166,12 +203,15 @@ class ListingViewSet(ModelViewSet):
                 )
 
             expires_days = plan.listing_duration_days
+            listing_type = plan.auto_listing_type
         else:
-            expires_days = 30  # plan topilmasa (kutilmagan holat), standart
+            expires_days = 30
+            listing_type = "normal"
 
         serializer.save(
             user=user,
             status="pending",
+            listing_type=listing_type,
             expires_at=timezone.now() + timedelta(days=expires_days),
         )
 
@@ -205,7 +245,6 @@ class ListingViewSet(ModelViewSet):
 
         serializer = ListingListSerializer(queryset, many=True, context={"request": request})
         return Response(serializer.data)
-
 
 
 @extend_schema(
