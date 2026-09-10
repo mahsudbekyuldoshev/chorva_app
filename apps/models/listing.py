@@ -38,8 +38,6 @@ class Listing(BaseModel):
     currency = CharField(max_length=3, default="UZS")
     status = CharField(max_length=10, choices=STATUS_CHOICES, default="pending")
     listing_type = CharField(max_length=10, choices=TYPE_CHOICES, default="normal")
-    # TODO: PostGIS PointField'ga o'tish kerak — GDAL/GEOS/PROJ kutubxonalari o'rnatilgandan keyin (Ubuntu: apt install gdal-bin libgdal-dev libgeos-dev libproj-dev; keyin py'da location = gis_PointField(geography=True, srid=4326) ga qaytariladi va migration generate qilinadi).
-    # Hozircha listings/map/ endpoint'ida radius bo'yicha filtrlashni oddiy Haversine formula (SQL yoki Python darajasida) bilan vaqtincha amalga oshiring, keyin PostGIS o'rnatilganda distance_lte ga almashtiriladi.
     lat = FloatField()
     lng = FloatField()
     address_text = CharField(max_length=255)
@@ -74,6 +72,7 @@ class Reel(BaseModel):
     user = ForeignKey(User, CASCADE, related_name="reels")
     listing = ForeignKey(Listing, SET_NULL, null=True, blank=True, related_name="reels")
     video = FileField(upload_to="reels/")
+    thumbnail = ImageField(upload_to="reels/thumbnails/", null=True, blank=True)
     caption = TextField(blank=True)
     view_count = IntegerField(default=0)
 

@@ -3,6 +3,14 @@ from rest_framework.fields import FileField, ListField, SerializerMethodField
 from rest_framework.serializers import ModelSerializer, ValidationError
 
 from apps.models import Category, Favorite, Listing, ListingMedia, Reel, Report
+from apps.utils.media import (
+    MAX_PHOTO_SIZE_MB,
+    MAX_VIDEO_DURATION_SECONDS,
+    MAX_VIDEO_SIZE_MB,
+    VideoProcessingError,
+    generate_thumbnail_file,
+    get_video_duration_seconds,
+)
 
 VIDEO_EXTENSIONS = ('.mp4', '.mov', '.avi')
 
@@ -81,6 +89,29 @@ class ListingCreateSerializer(ModelSerializer):
         )
 
     def validate_uploaded_files(self, value):
+        for f in value:
+            size_mb = f.size / (1024 * 1024)
+            if is_video_file(f.name):
+                if size_mb > MAX_VIDEO_SIZE_MB:
+                    raise serializers.ValidationError(
+                        f"Video hajmi {MAX_VIDEO_SIZE_MB}MB dan oshmasligi kerak."
+                    )
+                try:
+                    duration = get_video_duration_seconds(f)
+                except VideoProcessingError:
+                    raise serializers.ValidationError(
+                        "Video faylni tahlil qilib bo'lmadi — fayl buzilgan bo'lishi mumkin."
+                    )
+                if duration > MAX_VIDEO_DURATION_SECONDS:
+                    raise serializers.ValidationError(
+                        f"Video davomiyligi {MAX_VIDEO_DURATION_SECONDS} soniyadan oshmasligi kerak."
+                    )
+            else:
+                if size_mb > MAX_PHOTO_SIZE_MB:
+                    raise serializers.ValidationError(
+                        f"Rasm hajmi {MAX_PHOTO_SIZE_MB}MB dan oshmasligi kerak."
+                    )
+
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return value
@@ -134,11 +165,39 @@ class ReelSerializer(ModelSerializer):
 
     class Meta:
         model = Reel
-        fields = ('id', 'user', 'listing', 'video', 'caption', 'view_count', 'created_at')
+        fields = ('id', 'user', 'listing', 'video', 'caption', 'view_count', 'thumbnail', 'created_at')
+        read_only_fields = ('thumbnail',)
 
     def get_user(self, obj):
         from .user import UserPublicSerializer
         return UserPublicSerializer(obj.user).data
+
+    def validate_video(self, value):
+        size_mb = value.size / (1024 * 1024)
+        if size_mb > MAX_VIDEO_SIZE_MB:
+            raise serializers.ValidationError(
+                f"Video hajmi {MAX_VIDEO_SIZE_MB}MB dan oshmasligi kerak."
+            )
+        try:
+            duration = get_video_duration_seconds(value)
+        except VideoProcessingError:
+            raise serializers.ValidationError(
+                "Video faylni tahlil qilib bo'lmadi — fayl buzilgan bo'lishi mumkin."
+            )
+        if duration > MAX_VIDEO_DURATION_SECONDS:
+            raise serializers.ValidationError(
+                f"Video davomiyligi {MAX_VIDEO_DURATION_SECONDS} soniyadan oshmasligi kerak."
+            )
+        return value
+
+    def create(self, validated_data):
+        instance = super().create(validated_data)
+        try:
+            thumbnail_file = generate_thumbnail_file(instance.video)
+            instance.thumbnail.save(thumbnail_file.name, thumbnail_file, save=True)
+        except (VideoProcessingError, OSError):
+            pass
+        return instance
 
 
 class ReportSerializer(ModelSerializer):

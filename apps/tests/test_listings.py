@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -181,7 +182,8 @@ def test_listing_video_limit_enforced(api_client, verified_user, category):
     assert response.status_code == 400
 
 @pytest.mark.django_db
-def test_listing_within_media_limits_succeeds(api_client, verified_user, category):
+@patch("apps.serializers.listing.get_video_duration_seconds", return_value=10.0)
+def test_listing_within_media_limits_succeeds(mock_duration, api_client, verified_user, category):
     plan = Plan.objects.create(
         name="Free", slug="free", price=0, billing_period_days=30,
         max_active_listings=10, max_monthly_new_listings=10,
@@ -274,3 +276,34 @@ def test_list_ordering_by_price_respects_type_priority(api_client, verified_user
     assert response.status_code == 200
     titles = [item["title"] for item in response.data["results"]]
     assert titles == ["Top qimmat", "Oddiy arzon"]
+
+
+@pytest.mark.django_db
+def test_expire_listings_command(category, verified_user):
+    from django.core.management import call_command
+
+    expired_listing = Listing.objects.create(
+        user=verified_user, category=category, title="Eski", description="D",
+        price=100, lat=0, lng=0, address_text="A", status="active",
+        expires_at=timezone.now() - timedelta(days=1),
+    )
+    still_active_listing = Listing.objects.create(
+        user=verified_user, category=category, title="Yangi", description="D",
+        price=100, lat=0, lng=0, address_text="A", status="active",
+        expires_at=timezone.now() + timedelta(days=10),
+    )
+    pending_expired = Listing.objects.create(
+        user=verified_user, category=category, title="Kutilmoqda", description="D",
+        price=100, lat=0, lng=0, address_text="A", status="pending",
+        expires_at=timezone.now() - timedelta(hours=1),
+    )
+
+    call_command("expire_listings")
+
+    expired_listing.refresh_from_db()
+    still_active_listing.refresh_from_db()
+    pending_expired.refresh_from_db()
+
+    assert expired_listing.status == "expired"
+    assert still_active_listing.status == "active"
+    assert pending_expired.status == "expired"
