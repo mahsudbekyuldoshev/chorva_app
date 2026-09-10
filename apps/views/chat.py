@@ -39,9 +39,7 @@ class ConversationListCreateView(ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Conversation.objects.filter(Q(buyer=user) | Q(seller=user)).order_by(
-            "-updated_at"
-        )
+        return Conversation.objects.filter(Q(buyer=user) | Q(seller=user)).order_by("-updated_at")
 
 
 @extend_schema_view(
@@ -84,11 +82,7 @@ class MessageListCreateView(ListCreateAPIView):
         serializer.save(sender=self.request.user, conversation=conversation)
 
         # Create notification for recipient
-        recipient = (
-            conversation.seller
-            if self.request.user == conversation.buyer
-            else conversation.buyer
-        )
+        recipient = conversation.seller if self.request.user == conversation.buyer else conversation.buyer
         Notification.objects.create(
             user=recipient,
             type="message",

@@ -17,9 +17,7 @@ class NotificationListView(ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Notification.objects.filter(user=self.request.user).order_by(
-            "-created_at"
-        )
+        return Notification.objects.filter(user=self.request.user).order_by("-created_at")
 
 
 @extend_schema(
