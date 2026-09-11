@@ -25,7 +25,7 @@ urlpatterns = [
     path('auth/verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
     path('auth/me/', MeView.as_view(), name='me'),
-    path('users/<uuid:pk>/', UserPublicDetailView.as_view(), name='user-detail'),
+    path('users/<uuid:id>/', UserPublicDetailView.as_view(), name='user-detail'),
     path('users/<uuid:id>/follow/', FollowToggleView.as_view(), name='follow-toggle'),
 
     # Listings & Categories
