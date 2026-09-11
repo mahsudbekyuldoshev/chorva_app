@@ -7,6 +7,7 @@ ERROR_CODE_MAP = {
     "NotAuthenticated": "NOT_AUTHENTICATED",
     "PermissionDenied": "PERMISSION_DENIED",
     "NotFound": "NOT_FOUND",
+    "Http404": "NOT_FOUND",
     "Throttled": "THROTTLED",
     "ParseError": "PARSE_ERROR",
     "MethodNotAllowed": "METHOD_NOT_ALLOWED",

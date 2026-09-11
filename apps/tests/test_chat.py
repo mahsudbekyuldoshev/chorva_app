@@ -27,7 +27,7 @@ def test_participant_can_read_and_send_messages(api_client, conversation, user, 
     # Read
     response = api_client.get(url)
     assert response.status_code == status.HTTP_200_OK
-    assert len(response.data['results']) == 1
+    assert len(response.data) == 1
 
 @pytest.mark.django_db
 def test_cannot_create_conversation_with_self(api_client, user):

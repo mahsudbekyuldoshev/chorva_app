@@ -150,8 +150,7 @@ REST_FRAMEWORK = {
         "otp_verify": "5/min",
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 20,
+    "DEFAULT_PAGINATION_CLASS": "apps.utils.pagination.BarePagination",
     "DEFAULT_RENDERER_CLASSES": [
         "apps.utils.renderers.EnvelopeJSONRenderer",
         "rest_framework.renderers.BrowsableAPIRenderer",
@@ -164,6 +163,7 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "ChorvaApp uchun REST API hujjatlari",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "POSTPROCESSING_HOOKS": ["apps.utils.openapi.envelope_postprocessing_hook"],
 }
 
 SIMPLE_JWT = {

@@ -258,7 +258,7 @@ def test_list_orders_top_then_vip_then_normal(api_client, verified_user, categor
     response = api_client.get(reverse('listing-list'))
 
     assert response.status_code == 200
-    titles = [item["title"] for item in response.data["results"]]
+    titles = [item["title"] for item in response.data]
     assert titles == ["Top", "Vip", "Oddiy"]
 
 @pytest.mark.django_db
@@ -274,7 +274,7 @@ def test_list_ordering_by_price_respects_type_priority(api_client, verified_user
     response = api_client.get(reverse('listing-list'), {"ordering": "price"})
 
     assert response.status_code == 200
-    titles = [item["title"] for item in response.data["results"]]
+    titles = [item["title"] for item in response.data]
     assert titles == ["Top qimmat", "Oddiy arzon"]
 
 

@@ -1,0 +1,12 @@
+- Admin roli uchun alohida ruxsat/panel hali yo'q — keyingi bosqichda amalga oshiriladi.
+- expire_listings buyrug'ini muntazam ishga tushirish kerak (masalan server cron: 0 * * * * cd /path/to/project && uv run python manage.py expire_listings, yoki kelajakda Celery Beat orqali). Hozircha bu qo'lda yoki tashqi scheduler orqali bajarilishi kerak — kod ichida avtomatik chaqiruv yo'q.
+- Dockerfile CMD hozircha manage.py runserver ishlatadi (dev server). Production'ga chiqishdan oldin daphne/gunicorn bilan to'g'ridan-to'g'ri ishga tushirishga almashtirish kerak.
+- Ro'yxat (list) endpoint'larida pagination hali {"count","next","previous","results"} shaklida — mobil ilova esa data'ni to'g'ridan-to'g'ri massiv deb kutadi. Bu keyingi bosqichda hal qilinishi kerak (pagination'ni butunlay olib tashlash yoki data ichida boshqacha joylashtirish).
+- drf-spectacular (@extend_schema) javoblari hali ENVELOPE'siz tavsiflangan (masalan responses={200: ListingListSerializer(...)}) — Swagger hujjatlari endi haqiqiy javob shaklidan (success/data o'ramisiz) farq qiladi. Buni to'g'irlash keyingi bosqichda.
+
+
+
+
+
+gemini --resume 1334df9f-816a-4a59-998e-0d973cd21c61
+

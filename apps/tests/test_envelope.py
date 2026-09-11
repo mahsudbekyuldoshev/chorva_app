@@ -33,7 +33,7 @@ def test_validation_error_is_wrapped(auth_client):
 
 @pytest.mark.django_db
 def test_not_found_error_is_wrapped(api_client):
-    response = api_client.get(reverse('user-detail', kwargs={'pk': uuid.uuid4()}))
+    response = api_client.get(reverse('user-detail', kwargs={'id': uuid.uuid4()}))
     body = json.loads(response.content)
 
     assert response.status_code == 404

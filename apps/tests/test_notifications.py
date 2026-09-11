@@ -17,5 +17,5 @@ def test_user_sees_only_own_notifications(api_client, auth_client, user, other_u
     
     response = auth_client.get(reverse('notification-list'))
     assert response.status_code == status.HTTP_200_OK
-    assert len(response.data['results']) == 1
-    assert response.data['results'][0]['title'] == "User N"
+    assert len(response.data) == 1
+    assert response.data[0]['title'] == "User N"
