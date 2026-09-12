@@ -1,64 +1,51 @@
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.models import User
 from apps.serializers import RequestOTPSerializer, VerifyOTPSerializer
-from apps.services import generate_otp, verify_otp
+from apps.services.otp import generate_otp, verify_otp
 
 
+@extend_schema(
+    summary="OTP kodini so'rash",
+    request=RequestOTPSerializer,
+    responses={200: OpenApiResponse(description="OTP kod yuborildi")},
+    tags=["Auth"],
+)
 class RequestOTPView(APIView):
-    throttle_classes = [ScopedRateThrottle]
-    throttle_scope = "otp_request"
     permission_classes = []
 
-    @extend_schema(
-        summary="Telefon raqamga OTP kod yuborish",
-        description="Berilgan telefon raqamiga 4 xonali tasdiqlash kodini SMS orqali yuboradi.",
-        request=RequestOTPSerializer,
-        responses={
-            200: OpenApiResponse(description="OTP muvaffaqiyatli yuborildi"),
-            400: OpenApiResponse(description="Noto'g'ri so'rov (masalan telefon format xato)"),
-            429: OpenApiResponse(description="Juda ko'p urinish — birozdan so'ng qayta urinib ko'ring"),
-        },
-        tags=["Auth"],
-    )
     def post(self, request):
         serializer = RequestOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         phone = serializer.validated_data["phone"]
-        _otp, error = generate_otp(phone)
-
+        _, error = generate_otp(phone)
         if error:
-            return Response({"error": error}, status=status.HTTP_429_TOO_MANY_REQUESTS)
-
+            return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
         return Response({"message": "OTP sent"})
 
 
+@extend_schema(
+    summary="OTP kodini tekshirish",
+    request=VerifyOTPSerializer,
+    responses={
+        200: OpenApiResponse(description="Tokenlar va foydalanuvchi ma'lumotlari"),
+        400: OpenApiResponse(description="Noto'g'ri kod"),
+    },
+    tags=["Auth"],
+)
 class VerifyOTPView(APIView):
-    throttle_classes = [ScopedRateThrottle]
-    throttle_scope = "otp_verify"
     permission_classes = []
 
-    @extend_schema(
-        summary="OTP kodini tasdiqlash va JWT token olish",
-        description="To'g'ri kod kiritilsa, foydalanuvchi yaratiladi (agar mavjud bo'lmasa) va JWT access/refresh tokenlari qaytariladi.",
-        request=VerifyOTPSerializer,
-        responses={
-            200: OpenApiResponse(description="Muvaffaqiyatli autentifikatsiya — access/refresh token va user ma'lumotlari"),
-            400: OpenApiResponse(description="Kod noto'g'ri yoki muddati o'tgan"),
-            429: OpenApiResponse(description="Juda ko'p urinish"),
-        },
-        tags=["Auth"],
-    )
     def post(self, request):
         serializer = VerifyOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         phone = serializer.validated_data["phone"]
         code = serializer.validated_data["code"]
 
@@ -68,17 +55,52 @@ class VerifyOTPView(APIView):
                 user.set_unusable_password()
                 user.save()
                 from apps.models import Plan, Subscription
+
                 free_plan = Plan.objects.filter(slug="free").first()
                 if free_plan:
                     Subscription.objects.create(user=user, plan=free_plan, expires_at=None)
+
             refresh = RefreshToken.for_user(user)
             return Response(
                 {
-                    "refresh": str(refresh),
-                    "access": str(refresh.access_token),
-                    "user": {"id": user.id, "phone": user.phone},
                     "is_new_user": created,
+                    "user_id": str(user.id),
+                    "access_token": str(refresh.access_token),
+                    "refresh_token": str(refresh),
                 }
             )
 
         return Response({"error": "Invalid code"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class MobileTokenRefreshSerializer(TokenRefreshSerializer):
+    def to_internal_value(self, data):
+        data = data.copy()
+        if "refresh_token" in data and "refresh" not in data:
+            val = data.pop("refresh_token")
+            data["refresh"] = val[0] if isinstance(val, list) else val
+        return super().to_internal_value(data)
+
+    def validate(self, attrs):
+        result = super().validate(attrs)
+        output = {"access_token": result["access"]}
+        if "refresh" in result:
+            output["refresh_token"] = result["refresh"]
+        return output
+
+
+class MobileTokenRefreshView(TokenRefreshView):
+    serializer_class = MobileTokenRefreshSerializer
+
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        refresh_token = request.data.get("refresh_token")
+        if refresh_token:
+            try:
+                RefreshToken(refresh_token).blacklist()
+            except Exception:  # noqa: S110, BLE001
+                pass  # mobil ilova xatolikni e'tiborsiz qoldiradi (hujjatga ko'ra)
+        return Response(status=204)

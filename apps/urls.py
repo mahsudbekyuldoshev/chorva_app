@@ -1,8 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenRefreshView
 
-from apps.views.auth import RequestOTPView, VerifyOTPView
+from apps.views.auth import LogoutView, MobileTokenRefreshView, RequestOTPView, VerifyOTPView
 from apps.views.chat import ConversationListCreateView, MessageListCreateView
 from apps.views.listing import (
     CategoryListView,
@@ -21,10 +20,11 @@ router.register(r'reels', ReelViewSet, basename='reel')
 
 urlpatterns = [
     # Auth & User
-    path('auth/request-otp/', RequestOTPView.as_view(), name='request-otp'),
+    path('auth/send-otp/', RequestOTPView.as_view(), name='request-otp'),
     path('auth/verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
-    path('auth/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
-    path('auth/me/', MeView.as_view(), name='me'),
+    path('auth/refresh/', MobileTokenRefreshView.as_view(), name='token-refresh'),
+    path('auth/logout/', LogoutView.as_view(), name='logout'),
+    path('users/me/', MeView.as_view(), name='me'),
     path('users/<uuid:id>/', UserPublicDetailView.as_view(), name='user-detail'),
     path('users/<uuid:id>/follow/', FollowToggleView.as_view(), name='follow-toggle'),
 

@@ -23,3 +23,23 @@ def test_cannot_follow_self(auth_client, user):
     url = reverse('follow-toggle', kwargs={'id': user.id})
     response = auth_client.post(url)
     assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
+def test_me_endpoint_new_path_and_fields(auth_client, user):
+    response = auth_client.get(reverse('me'))
+
+    assert response.status_code == 200
+    for key in ("bio", "avatar_url", "posts_count", "followers_count",
+                "following_count", "rating", "rating_count", "tier_id", "tier_name"):
+        assert key in response.data
+
+
+@pytest.mark.django_db
+def test_public_profile_shape(api_client, user):
+    response = api_client.get(reverse('user-detail', kwargs={'id': user.id}))
+
+    assert response.status_code == 200
+    for key in ("phone", "bio", "avatar_url", "posts_count",
+                "followers_count", "rating", "rating_count", "tier_id", "tier_name"):
+        assert key in response.data

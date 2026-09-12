@@ -7,7 +7,7 @@ from django.db.models import TextChoices
 from django.db.models.constraints import CheckConstraint
 from django.db.models.deletion import CASCADE
 from django.db.models.expressions import F
-from django.db.models.fields import BooleanField, CharField
+from django.db.models.fields import BooleanField, CharField, TextField
 from django.db.models.fields.files import ImageField
 from django.db.models.fields.related import ForeignKey
 from django.db.models.query_utils import Q
@@ -42,8 +42,10 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     is_verified = BooleanField(default=False)
     is_vip = BooleanField(default=False)
     role = CharField(max_length=20, choices=Role.choices, default=Role.USER)
+    bio = TextField(blank=True, default="")
     language = CharField(max_length=5, default="uz")
     dark_mode = BooleanField(default=False)
+    is_active = BooleanField(default=True)
     is_staff = BooleanField(default=False)
 
     objects = UserManager()
