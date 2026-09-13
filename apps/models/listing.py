@@ -43,6 +43,13 @@ class Listing(BaseModel):
     address_text = CharField(max_length=255)
     view_count = IntegerField(default=0)
     expires_at = DateTimeField()
+    is_negotiable = BooleanField(default=False)
+    has_delivery = BooleanField(default=False)
+    phone = CharField(max_length=20, blank=True)
+    additional_phone = CharField(max_length=20, blank=True, null=True)
+    reel_video = FileField(upload_to="listings/reels/", null=True, blank=True)
+    reel_thumbnail = ImageField(upload_to="listings/reels/thumbnails/", null=True, blank=True)
+    relisted_at = DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.title

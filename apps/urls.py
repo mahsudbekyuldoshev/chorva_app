@@ -12,11 +12,13 @@ from apps.views.listing import (
 )
 from apps.views.notification import NotificationListView, NotificationMarkReadView
 from apps.views.plan import PlanListView
+from apps.views.product import ProductViewSet
 from apps.views.user import FollowToggleView, MeView, UserPublicDetailView
 
 router = DefaultRouter()
 router.register(r'listings', ListingViewSet, basename='listing')
 router.register(r'reels', ReelViewSet, basename='reel')
+router.register(r'products', ProductViewSet, basename='product')
 
 urlpatterns = [
     # Auth & User
@@ -29,10 +31,10 @@ urlpatterns = [
     path('users/<uuid:id>/follow/', FollowToggleView.as_view(), name='follow-toggle'),
 
     # Listings & Categories
+    path('listings/map/', ListingViewSet.as_view({'get': 'map'}), name='listing-map'),
     path('categories/', CategoryListView.as_view(), name='category-list'),
     path('favorites/', FavoriteListView.as_view(), name='favorite-list'),
     path('reports/', ReportCreateView.as_view(), name='report-create'),
-    path('listings/map/', ListingViewSet.as_view({'get': 'map'}), name='listing-map'),
 
     # Chat
     path('conversations/', ConversationListCreateView.as_view(), name='conversation-list'),

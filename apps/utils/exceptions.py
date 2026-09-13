@@ -1,4 +1,4 @@
-from rest_framework.exceptions import Throttled
+from rest_framework.exceptions import APIException, Throttled
 from rest_framework.views import exception_handler
 
 ERROR_CODE_MAP = {
@@ -11,7 +11,14 @@ ERROR_CODE_MAP = {
     "Throttled": "THROTTLED",
     "ParseError": "PARSE_ERROR",
     "MethodNotAllowed": "METHOD_NOT_ALLOWED",
+    "RelistCooldownError": "RELIST_COOLDOWN",
 }
+
+
+class RelistCooldownError(APIException):
+    status_code = 400
+    default_detail = "Qayta ko'tarish uchun hali vaqt kerak."
+    default_code = "relist_cooldown"
 
 
 def _extract_message(data):
