@@ -307,3 +307,17 @@ def test_expire_listings_command(category, verified_user):
     assert expired_listing.status == "expired"
     assert still_active_listing.status == "active"
     assert pending_expired.status == "expired"
+
+
+@pytest.mark.django_db
+def test_listing_map_endpoint(api_client, verified_user, category):
+    Listing.objects.create(
+        user=verified_user, category=category, title="Map Listing", description="D",
+        price=100, lat=41.311081, lng=69.240562, address_text="Toshkent", status="active",
+        expires_at=timezone.now() + timedelta(days=30),
+    )
+
+    response = api_client.get(reverse('listing-map'), {"lat": 41.311081, "lng": 69.240562, "radius_km": 10})
+    assert response.status_code == 200
+    assert len(response.data) == 1
+    assert response.data[0]["title"] == "Map Listing"
