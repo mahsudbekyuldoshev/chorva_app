@@ -20,6 +20,7 @@ class Notification(BaseModel):
     title = CharField(max_length=255)
     body = TextField()
     is_read = BooleanField(default=False)
+    action_type = CharField(max_length=50, blank=True, null=True)
 
     class Meta:
         ordering = ["-created_at"]

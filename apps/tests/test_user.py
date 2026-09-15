@@ -43,3 +43,18 @@ def test_public_profile_shape(api_client, user):
     for key in ("phone", "bio", "avatar_url", "posts_count",
                 "followers_count", "rating", "rating_count", "tier_id", "tier_name"):
         assert key in response.data
+
+
+@pytest.mark.django_db
+def test_authenticated_request_updates_last_seen(api_client, user):
+    from rest_framework_simplejwt.tokens import RefreshToken
+
+    assert user.last_seen_at is None
+    refresh = RefreshToken.for_user(user)
+    api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
+
+    response = api_client.get(reverse('me'))
+
+    assert response.status_code == 200
+    user.refresh_from_db()
+    assert user.last_seen_at is not None

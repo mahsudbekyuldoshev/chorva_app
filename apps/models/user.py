@@ -7,7 +7,7 @@ from django.db.models import TextChoices
 from django.db.models.constraints import CheckConstraint
 from django.db.models.deletion import CASCADE
 from django.db.models.expressions import F
-from django.db.models.fields import BooleanField, CharField, TextField
+from django.db.models.fields import BooleanField, CharField, DateTimeField, TextField
 from django.db.models.fields.files import ImageField
 from django.db.models.fields.related import ForeignKey
 from django.db.models.query_utils import Q
@@ -47,6 +47,7 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     dark_mode = BooleanField(default=False)
     is_active = BooleanField(default=True)
     is_staff = BooleanField(default=False)
+    last_seen_at = DateTimeField(null=True, blank=True)
 
     objects = UserManager()
 

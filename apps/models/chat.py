@@ -1,7 +1,7 @@
 from django.db.models.constraints import CheckConstraint
 from django.db.models.deletion import CASCADE, SET_NULL
 from django.db.models.expressions import F
-from django.db.models.fields import BooleanField, TextField
+from django.db.models.fields import BooleanField, DateTimeField, TextField
 from django.db.models.fields.related import ForeignKey
 from django.db.models.query_utils import Q
 
@@ -31,6 +31,7 @@ class Message(BaseModel):
     sender = ForeignKey(User, CASCADE, related_name="sent_messages")
     text = TextField()
     is_read = BooleanField(default=False)
+    read_at = DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["created_at"]
