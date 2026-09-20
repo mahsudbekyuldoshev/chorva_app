@@ -12,6 +12,7 @@ from apps.views.listing import (
     ReelViewSet,
     ReportCreateView,
 )
+from apps.views.media import MediaPresignView
 from apps.views.notification import NotificationListView, NotificationMarkReadView
 from apps.views.notification_extra import NotificationMarkAllReadView, NotificationUnreadCountView
 from apps.views.plan import PlanListView
@@ -40,6 +41,7 @@ urlpatterns = [
     path('favourites/<uuid:product_id>/', FavouriteToggleView.as_view(), name='favourite-toggle'),
     path('favorites/', FavoriteListView.as_view(), name='favorite-list'),
     path('reports/', ReportCreateView.as_view(), name='report-create'),
+    path('media/presign/', MediaPresignView.as_view(), name='media-presign'),
 
     # Chat
     path('conversations/', ConversationListCreateView.as_view(), name='conversation-list'),

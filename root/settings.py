@@ -255,3 +255,12 @@ if "pytest" in sys.modules:
             "BACKEND": "channels.layers.InMemoryChannelLayer",
         }
     }
+
+MINIO_ENDPOINT_URL = os.getenv("MINIO_ENDPOINT_URL", "http://localhost:9000")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "")
+MINIO_BUCKET_NAME = os.getenv("MINIO_BUCKET_NAME", "chorvabor-media")
+MINIO_PUBLIC_BASE_URL = os.getenv(
+    "MINIO_PUBLIC_BASE_URL", f"{MINIO_ENDPOINT_URL}/{MINIO_BUCKET_NAME}"
+)
+MINIO_PRESIGN_EXPIRES_SECONDS = int(os.getenv("MINIO_PRESIGN_EXPIRES_SECONDS", "3600"))
