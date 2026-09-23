@@ -2,6 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from apps.views.auth import LogoutView, MobileTokenRefreshView, RequestOTPView, VerifyOTPView
+from apps.views.banner import BannerListView, BannerViewIncrementView
 from apps.views.chat import ConversationListCreateView, MessageListCreateView
 from apps.views.chat_mobile import ChatListCreateView, ChatMarkReadView, ChatMessageListCreateView
 from apps.views.favourite import FavouriteListView, FavouriteToggleView
@@ -42,6 +43,8 @@ urlpatterns = [
     path('favorites/', FavoriteListView.as_view(), name='favorite-list'),
     path('reports/', ReportCreateView.as_view(), name='report-create'),
     path('media/presign/', MediaPresignView.as_view(), name='media-presign'),
+    path('banners/', BannerListView.as_view(), name='banner-list'),
+    path('banners/<uuid:pk>/view/', BannerViewIncrementView.as_view(), name='banner-view'),
 
     # Chat
     path('conversations/', ConversationListCreateView.as_view(), name='conversation-list'),

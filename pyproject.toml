@@ -10,7 +10,6 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "python-dotenv>=1.0",
     "pillow>=11.1",
-    "requests>=2.32",
     "sentry-sdk>=2.19",
     "gunicorn>=23.0",
     "whitenoise>=6.8",
