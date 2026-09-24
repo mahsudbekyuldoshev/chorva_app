@@ -18,6 +18,7 @@ from apps.views.notification import NotificationListView, NotificationMarkReadVi
 from apps.views.notification_extra import NotificationMarkAllReadView, NotificationUnreadCountView
 from apps.views.plan import PlanListView
 from apps.views.product import ProductViewSet
+from apps.views.promo_code import PromoCodeCheckView, PromoCodeMineListView
 from apps.views.user import FollowToggleView, MeView, UserPublicDetailView
 
 router = DefaultRouter()
@@ -59,6 +60,10 @@ urlpatterns = [
     path('notifications/read-all/', NotificationMarkAllReadView.as_view(), name='notification-read-all'),
     path('notifications/<uuid:pk>/read/', NotificationMarkReadView.as_view(), name='notification-read'),
     path('plans/', PlanListView.as_view(), name='plan-list'),
+
+    # Promo Codes
+    path('promo-codes/mine/', PromoCodeMineListView.as_view(), name='promo-code-mine'),
+    path('promo-codes/<str:code>/', PromoCodeCheckView.as_view(), name='promo-code-check'),
 
     # Router URLs
     path('', include(router.urls)),

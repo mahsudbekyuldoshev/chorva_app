@@ -5,6 +5,7 @@ from .chat import Conversation, Message
 from .listing import Favorite, Listing, ListingMedia, Reel, Report
 from .notification import Notification
 from .plan import Plan, Subscription
+from .promo_code import PromoCode
 from .user import Follow, User
 
 __all__ = [
@@ -19,6 +20,7 @@ __all__ = [
     'Message',
     'Notification',
     'Plan',
+    'PromoCode',
     'Reel',
     'Report',
     'Subscription',

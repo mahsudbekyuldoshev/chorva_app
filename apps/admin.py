@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from apps.models import Banner, Plan, Subscription, User
+from apps.models import Banner, Plan, PromoCode, Subscription, User
 
 
 @admin.register(Banner)
@@ -13,6 +13,13 @@ class BannerAdmin(admin.ModelAdmin):
 class PlanAdmin(admin.ModelAdmin):
     list_display = ("name", "price", "billing_period_days", "max_active_listings", "sort_order")
     ordering = ("sort_order",)
+
+
+@admin.register(PromoCode)
+class PromoCodeAdmin(admin.ModelAdmin):
+    list_display = ("code", "user", "reward", "used", "created_at")
+    list_filter = ("reward", "used")
+    search_fields = ("code", "user__phone")
 
 
 @admin.register(Subscription)

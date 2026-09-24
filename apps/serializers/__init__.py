@@ -31,6 +31,10 @@ from .product import (
 from .product import (
     ProductSerializer as ProductSerializer,
 )
+from .promo_code import (
+    PromoCodeCheckSerializer as PromoCodeCheckSerializer,
+    PromoCodeSerializer as PromoCodeSerializer,
+)
 from .user import (
     MeSerializer as MeSerializer,
 )
@@ -55,6 +59,8 @@ __all__ = [
     "ProductOwnerSerializer",
     "ProductReportSerializer",
     "ProductSerializer",
+    "PromoCodeCheckSerializer",
+    "PromoCodeSerializer",
     "ReelSerializer",
     "ReportSerializer",
     "RequestOTPSerializer",

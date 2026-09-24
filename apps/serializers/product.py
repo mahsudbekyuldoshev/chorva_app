@@ -127,12 +127,24 @@ class ProductCreateSerializer(serializers.ModelSerializer):
             )
         return value
 
+    def validate_promo_code(self, value):
+        if not value:
+            return value
+        from apps.models import PromoCode
+        request = self.context["request"]
+        promo = PromoCode.objects.filter(code=value, user=request.user, used=False).first()
+        if not promo:
+            raise serializers.ValidationError(
+                "Promo kod topilmadi, sizga tegishli emas yoki allaqachon ishlatilgan."
+            )
+        return value
+
     def create(self, validated_data):
         images = validated_data.pop("images", [])
         is_top = validated_data.pop("is_top", False)
         is_vip = validated_data.pop("is_vip", False)
         validated_data.pop("is_free", None)
-        validated_data.pop("promo_code", None)
+        promo_code = validated_data.pop("promo_code", None)
 
         if is_top:
             validated_data["listing_type"] = "top"
@@ -159,6 +171,18 @@ class ProductCreateSerializer(serializers.ModelSerializer):
                 listing.reel_thumbnail.save(thumb.name, thumb, save=True)
             except VideoProcessingError:
                 pass
+
+        if promo_code:
+            from django.utils import timezone
+
+            from apps.models import PromoCode
+            promo = PromoCode.objects.get(code=promo_code, user=request.user, used=False)
+            if promo.reward == PromoCode.Reward.FREE_TOP_PLACEMENT:
+                listing.listing_type = "top"
+                listing.save(update_fields=["listing_type"])
+            promo.used = True
+            promo.used_at = timezone.now()
+            promo.save(update_fields=["used", "used_at"])
 
         return listing
 

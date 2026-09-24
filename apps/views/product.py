@@ -83,7 +83,17 @@ class ProductViewSet(viewsets.ModelViewSet):
         else:
             expires_days = 30
 
-        serializer.save(status="pending", expires_at=timezone.now() + timedelta(days=expires_days))
+        instance = serializer.save(status="pending", expires_at=timezone.now() + timedelta(days=expires_days))
+
+        if instance.price == 0:
+            from apps.models import PromoCode
+            from apps.utils.promo import generate_promo_code
+            PromoCode.objects.create(
+                user=self.request.user,
+                code=generate_promo_code(),
+                reward=PromoCode.Reward.FREE_TOP_PLACEMENT,
+                discount_amount=0,
+            )
 
     @action(detail=False, methods=["get"])
     def mine(self, request):
