@@ -1,3 +1,4 @@
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -31,4 +32,6 @@ class PromoCodeCheckView(APIView):
             raise PermissionDenied("Bu promo kod sizga tegishli emas.")
         if promo.used:
             raise ValidationError("Bu promo kod allaqachon ishlatilgan.")
+        if promo.expires_at and promo.expires_at < timezone.now():
+            raise ValidationError("Bu promo kodning muddati o'tgan.")
         return Response(PromoCodeCheckSerializer(promo).data)

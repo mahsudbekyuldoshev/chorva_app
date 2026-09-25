@@ -130,12 +130,14 @@ class ProductCreateSerializer(serializers.ModelSerializer):
     def validate_promo_code(self, value):
         if not value:
             return value
+        from django.utils import timezone
+
         from apps.models import PromoCode
         request = self.context["request"]
-        promo = PromoCode.objects.filter(code=value, user=request.user, used=False).first()
+        promo = PromoCode.objects.filter(code=value, user=request.user, used=False).exclude(expires_at__lt=timezone.now()).first()
         if not promo:
             raise serializers.ValidationError(
-                "Promo kod topilmadi, sizga tegishli emas yoki allaqachon ishlatilgan."
+                "Promo kod topilmadi, sizga tegishli emas, allaqachon ishlatilgan yoki muddati o'tgan."
             )
         return value
 
@@ -176,10 +178,17 @@ class ProductCreateSerializer(serializers.ModelSerializer):
             from django.utils import timezone
 
             from apps.models import PromoCode
-            promo = PromoCode.objects.get(code=promo_code, user=request.user, used=False)
+            promo = PromoCode.objects.filter(code=promo_code, user=request.user, used=False).exclude(expires_at__lt=timezone.now()).first()
+            if not promo:
+                raise serializers.ValidationError("Promo kod endi yaroqsiz.")
             if promo.reward == PromoCode.Reward.FREE_TOP_PLACEMENT:
                 listing.listing_type = "top"
                 listing.save(update_fields=["listing_type"])
+            elif promo.reward == PromoCode.Reward.TOP_DISCOUNT:
+                if promo.discount_amount:
+                    from decimal import Decimal
+                    listing.price = max(Decimal("0.00"), listing.price - promo.discount_amount)
+                    listing.save(update_fields=["price"])
             promo.used = True
             promo.used_at = timezone.now()
             promo.save(update_fields=["used", "used_at"])

@@ -108,3 +108,69 @@ def test_create_listing_with_promo_code_sets_top_and_marks_used(auth_client, ver
     assert listing.listing_type == "top"
     promo.refresh_from_db()
     assert promo.used is True
+
+@pytest.mark.django_db
+def test_create_listing_with_top_discount_reduces_price_and_marks_used(auth_client, verified_user, category):
+    plan = Plan.objects.create(
+        name="Free", slug="free_promo4", price=0, billing_period_days=30,
+        max_active_listings=10, max_monthly_new_listings=10,
+        max_photos_per_listing=6, max_videos_per_listing=1,
+        listing_duration_days=30, reboost_interval_days=3, auto_listing_type="normal",
+    )
+    Subscription.objects.create(user=verified_user, plan=plan)
+    promo = PromoCode.objects.create(
+        user=verified_user, code="DISC1000", reward="top_discount", discount_amount=200,
+    )
+    auth_client.force_authenticate(user=verified_user)
+
+    response = auth_client.post(reverse('product-list'), {
+        "category_id": category.id, "title": "Chegirma sinov", "description": "D",
+        "cost": 1000, "address": "A", "lat": 0, "lng": 0, "promo_code": "DISC1000",
+    })
+
+    assert response.status_code == 201
+    from apps.models import Listing
+    listing = Listing.objects.get(id=response.data['id'])
+    assert listing.price == 800
+    promo.refresh_from_db()
+    assert promo.used is True
+
+@pytest.mark.django_db
+def test_promo_code_check_expired(auth_client, verified_user):
+    from datetime import timedelta
+
+    from django.utils import timezone
+    PromoCode.objects.create(
+        user=verified_user, code="EXPR0001", reward="free_top_placement",
+        expires_at=timezone.now() - timedelta(days=1),
+    )
+    auth_client.force_authenticate(user=verified_user)
+
+    response = auth_client.get(reverse('promo-code-check', kwargs={'code': 'EXPR0001'}))
+
+    assert response.status_code == 400
+
+@pytest.mark.django_db
+def test_create_listing_with_expired_promo_code_rejected(auth_client, verified_user, category):
+    from datetime import timedelta
+
+    from django.utils import timezone
+    plan = Plan.objects.create(
+        name="Free", slug="free_promo5", price=0, billing_period_days=30,
+        max_active_listings=10, max_monthly_new_listings=10,
+        max_photos_per_listing=6, max_videos_per_listing=1,
+        listing_duration_days=30, reboost_interval_days=3, auto_listing_type="normal",
+    )
+    Subscription.objects.create(user=verified_user, plan=plan)
+    PromoCode.objects.create(
+        user=verified_user, code="EXPR0002", reward="free_top_placement",
+        expires_at=timezone.now() - timedelta(days=1),
+    )
+    auth_client.force_authenticate(user=verified_user)
+
+    response = auth_client.post(reverse('product-list'), {
+        "category_id": category.id, "title": "Muddati o'tgan", "description": "D",
+        "cost": 500, "address": "A", "lat": 0, "lng": 0, "promo_code": "EXPR0002",
+    })
+
+    assert response.status_code == 400
