@@ -321,3 +321,172 @@ def test_listing_map_endpoint(api_client, verified_user, category):
     assert response.status_code == 200
     assert len(response.data) == 1
     assert response.data[0]["title"] == "Map Listing"
+
+
+@pytest.mark.django_db
+@patch("apps.serializers.listing.generate_thumbnail_file")
+@patch("apps.serializers.listing.get_video_duration_seconds", return_value=10.0)
+@patch("apps.utils.storage.download_from_minio")
+def test_reel_with_video_key_succeeds(mock_download, mock_duration, mock_thumb, api_client, verified_user, category):
+    from django.core.files.base import ContentFile
+    api_client.force_authenticate(user=verified_user)
+    mock_download.return_value = ContentFile(b"fake-video", name="reel.mp4")
+    mock_thumb.return_value = ContentFile(b"fake-thumb", name="thumb.jpg")
+
+    data = {
+        "caption": "Reel test",
+        "video_key": "videos/reel.mp4",
+    }
+    response = api_client.post(reverse('reel-list'), data)
+
+    assert response.status_code == 201
+    from apps.models import Reel
+    reel = Reel.objects.get(id=response.data['id'])
+    assert reel.video.name == "videos/reel.mp4"
+
+
+@pytest.mark.django_db
+def test_reel_with_both_video_and_video_key_fails(api_client, verified_user):
+    api_client.force_authenticate(user=verified_user)
+    data = {
+        "caption": "Reel test",
+        "video": _fake_video(),
+        "video_key": "videos/reel.mp4",
+    }
+    response = api_client.post(reverse('reel-list'), data, format="multipart")
+    assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_reel_with_neither_video_nor_video_key_fails(api_client, verified_user):
+    api_client.force_authenticate(user=verified_user)
+    data = {
+        "caption": "Reel test",
+    }
+    response = api_client.post(reverse('reel-list'), data)
+    assert response.status_code == 400
+
+
+@pytest.mark.django_db
+@patch("apps.utils.storage.download_from_minio")
+@patch("apps.utils.storage.delete_from_minio")
+def test_reel_with_invalid_video_key_fails(mock_delete, mock_download, api_client, verified_user):
+    api_client.force_authenticate(user=verified_user)
+    mock_download.side_effect = ValueError("MinIO'da topilmadi")
+
+    data = {
+        "caption": "Reel test",
+        "video_key": "videos/missing.mp4",
+    }
+    response = api_client.post(reverse('reel-list'), data)
+
+    assert response.status_code == 400
+    mock_delete.assert_called_once_with("videos/missing.mp4")
+
+
+@pytest.mark.django_db
+@patch("apps.utils.storage.download_from_minio")
+def test_listing_with_media_keys_succeeds(mock_download, api_client, verified_user, category):
+    from django.core.files.base import ContentFile
+    plan = Plan.objects.create(
+        name="Free", slug="free_mk", price=0, billing_period_days=30,
+        max_active_listings=10, max_monthly_new_listings=10,
+        max_photos_per_listing=2, max_videos_per_listing=1,
+        listing_duration_days=30, reboost_interval_days=3, auto_listing_type="normal"
+    )
+    Subscription.objects.create(user=verified_user, plan=plan)
+    api_client.force_authenticate(user=verified_user)
+
+    mock_download.return_value = ContentFile(b"fake-image", name="test.jpg")
+
+    data = {
+        "category": category.id, "title": "Media Key Test", "description": "D", "price": 100,
+        "lat": 0, "lng": 0, "address_text": "A",
+        "media_keys": ["images/test.jpg"],
+    }
+    response = api_client.post(reverse('listing-list'), data)
+
+    assert response.status_code == 201
+    listing = Listing.objects.get(id=response.data['id'])
+    assert listing.media.count() == 1
+    assert listing.media.first().file.name == "images/test.jpg"
+
+
+@pytest.mark.django_db
+@patch("apps.utils.storage.download_from_minio")
+@patch("apps.utils.storage.delete_from_minio")
+def test_listing_with_invalid_media_key_fails(mock_delete, mock_download, api_client, verified_user, category):
+    plan = Plan.objects.create(
+        name="Free", slug="free_mk2", price=0, billing_period_days=30,
+        max_active_listings=10, max_monthly_new_listings=10,
+        max_photos_per_listing=2, max_videos_per_listing=1,
+        listing_duration_days=30, reboost_interval_days=3, auto_listing_type="normal"
+    )
+    Subscription.objects.create(user=verified_user, plan=plan)
+    api_client.force_authenticate(user=verified_user)
+
+    mock_download.side_effect = ValueError("MinIO'da topilmadi")
+
+    data = {
+        "category": category.id, "title": "Invalid Key Test", "description": "D", "price": 100,
+        "lat": 0, "lng": 0, "address_text": "A",
+        "media_keys": ["images/missing.jpg"],
+    }
+    response = api_client.post(reverse('listing-list'), data)
+
+    assert response.status_code == 400
+    mock_delete.assert_called_once_with("images/missing.jpg")
+
+
+@pytest.mark.django_db
+@patch("apps.serializers.listing.get_video_duration_seconds", return_value=70.0)
+@patch("apps.utils.storage.download_from_minio")
+@patch("apps.utils.storage.delete_from_minio")
+def test_listing_with_oversized_video_media_key_deletes_and_fails(mock_delete, mock_download, mock_duration, api_client, verified_user, category):
+    from django.core.files.base import ContentFile
+    plan = Plan.objects.create(
+        name="Free", slug="free_mk3", price=0, billing_period_days=30,
+        max_active_listings=10, max_monthly_new_listings=10,
+        max_photos_per_listing=2, max_videos_per_listing=1,
+        listing_duration_days=30, reboost_interval_days=3, auto_listing_type="normal"
+    )
+    Subscription.objects.create(user=verified_user, plan=plan)
+    api_client.force_authenticate(user=verified_user)
+
+    mock_download.return_value = ContentFile(b"fake-video", name="long.mp4")
+
+    data = {
+        "category": category.id, "title": "Long Video Test", "description": "D", "price": 100,
+        "lat": 0, "lng": 0, "address_text": "A",
+        "media_keys": ["videos/long.mp4"],
+    }
+    response = api_client.post(reverse('listing-list'), data)
+
+    assert response.status_code == 400
+    mock_delete.assert_called_once_with("videos/long.mp4")
+
+
+@pytest.mark.django_db
+@patch("apps.utils.storage.download_from_minio")
+def test_listing_combined_uploaded_files_and_media_keys_exceeds_limits(mock_download, api_client, verified_user, category):
+    from django.core.files.base import ContentFile
+    plan = Plan.objects.create(
+        name="Free", slug="free_mk4", price=0, billing_period_days=30,
+        max_active_listings=10, max_monthly_new_listings=10,
+        max_photos_per_listing=1, max_videos_per_listing=1,
+        listing_duration_days=30, reboost_interval_days=3, auto_listing_type="normal"
+    )
+    Subscription.objects.create(user=verified_user, plan=plan)
+    api_client.force_authenticate(user=verified_user)
+
+    mock_download.return_value = ContentFile(b"fake-image", name="test.jpg")
+
+    data = {
+        "category": category.id, "title": "Limit Test", "description": "D", "price": 100,
+        "lat": 0, "lng": 0, "address_text": "A",
+        "uploaded_files": [_fake_image("a.jpg")],
+        "media_keys": ["images/b.jpg"],
+    }
+    response = api_client.post(reverse('listing-list'), data, format="multipart")
+
+    assert response.status_code == 400

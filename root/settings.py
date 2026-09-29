@@ -35,12 +35,14 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.gis",
     "rest_framework",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "drf_spectacular",
     "channels",
+    "storages",
     "apps",
 ]
 
@@ -83,7 +85,7 @@ ASGI_APPLICATION = "root.asgi.application"
 # Database
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
+        "ENGINE": "django.contrib.gis.db.backends.postgis",
         "NAME": os.getenv("DB_NAME"),
         "USER": os.getenv("DB_USER"),
         "PASSWORD": os.getenv("DB_PASSWORD"),
@@ -127,7 +129,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 STORAGES = {
     "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
     },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
@@ -264,3 +266,12 @@ MINIO_PUBLIC_BASE_URL = os.getenv(
     "MINIO_PUBLIC_BASE_URL", f"{MINIO_ENDPOINT_URL}/{MINIO_BUCKET_NAME}"
 )
 MINIO_PRESIGN_EXPIRES_SECONDS = int(os.getenv("MINIO_PRESIGN_EXPIRES_SECONDS", "3600"))
+
+AWS_ACCESS_KEY_ID = MINIO_ACCESS_KEY
+AWS_SECRET_ACCESS_KEY = MINIO_SECRET_KEY
+AWS_STORAGE_BUCKET_NAME = MINIO_BUCKET_NAME
+AWS_S3_ENDPOINT_URL = MINIO_ENDPOINT_URL
+AWS_S3_CUSTOM_DOMAIN = None
+AWS_DEFAULT_ACL = None
+AWS_S3_FILE_OVERWRITE = False
+AWS_QUERYSTRING_AUTH = False

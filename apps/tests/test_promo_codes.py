@@ -174,3 +174,29 @@ def test_create_listing_with_expired_promo_code_rejected(auth_client, verified_u
     })
 
     assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_create_listing_with_null_expires_at_promo_code(auth_client, verified_user, category):
+    plan = Plan.objects.create(
+        name="Free", slug="free_promo6", price=0, billing_period_days=30,
+        max_active_listings=10, max_monthly_new_listings=10,
+        max_photos_per_listing=6, max_videos_per_listing=1,
+        listing_duration_days=30, reboost_interval_days=3, auto_listing_type="normal",
+    )
+    Subscription.objects.create(user=verified_user, plan=plan)
+    PromoCode.objects.create(
+        user=verified_user, code="MUDDATSIZ", reward="free_top_placement",
+        expires_at=None,
+    )
+    auth_client.force_authenticate(user=verified_user)
+
+    response = auth_client.post(reverse('product-list'), {
+        "category_id": category.id, "title": "Muddatsiz promo", "description": "D",
+        "cost": 500, "address": "A", "lat": 0, "lng": 0, "promo_code": "MUDDATSIZ",
+    })
+
+    assert response.status_code == 201
+    from apps.models import Listing
+    listing = Listing.objects.get(id=response.data['id'])
+    assert listing.listing_type == "top"

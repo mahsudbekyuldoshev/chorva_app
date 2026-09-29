@@ -80,12 +80,21 @@ class ListingCreateSerializer(ModelSerializer):
         write_only=True,
         required=False
     )
+    media_keys = ListField(
+        child=serializers.CharField(max_length=500),
+        write_only=True,
+        required=False,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._downloaded_media = {}
 
     class Meta:
         model = Listing
         fields = (
             'id', 'category', 'title', 'description', 'price', 'currency',
-            'lat', 'lng', 'address_text', 'uploaded_files'
+            'lat', 'lng', 'address_text', 'uploaded_files', 'media_keys'
         )
 
     def validate_uploaded_files(self, value):
@@ -111,17 +120,64 @@ class ListingCreateSerializer(ModelSerializer):
                     raise serializers.ValidationError(
                         f"Rasm hajmi {MAX_PHOTO_SIZE_MB}MB dan oshmasligi kerak."
                     )
+        return value
+
+    def validate_media_keys(self, value):
+        from apps.utils.storage import delete_from_minio, download_from_minio
+        self._downloaded_media = {}
+        for key in value:
+            try:
+                f = download_from_minio(key)
+            except ValueError as exc:
+                delete_from_minio(key)
+                raise serializers.ValidationError(str(exc))
+
+            size_mb = f.size / (1024 * 1024)
+            media_type = 'video' if is_video_file(key) else 'image'
+            if media_type == 'video':
+                if size_mb > MAX_VIDEO_SIZE_MB:
+                    delete_from_minio(key)
+                    raise serializers.ValidationError(
+                        f"Video hajmi {MAX_VIDEO_SIZE_MB}MB dan oshmasligi kerak."
+                    )
+                try:
+                    duration = get_video_duration_seconds(f)
+                except VideoProcessingError:
+                    delete_from_minio(key)
+                    raise serializers.ValidationError(
+                        "Video faylni tahlil qilib bo'lmadi — fayl buzilgan bo'lishi mumkin."
+                    )
+                if duration > MAX_VIDEO_DURATION_SECONDS:
+                    delete_from_minio(key)
+                    raise serializers.ValidationError(
+                        f"Video davomiyligi {MAX_VIDEO_DURATION_SECONDS} soniyadan oshmasligi kerak."
+                    )
+            else:
+                if size_mb > MAX_PHOTO_SIZE_MB:
+                    delete_from_minio(key)
+                    raise serializers.ValidationError(
+                        f"Rasm hajmi {MAX_PHOTO_SIZE_MB}MB dan oshmasligi kerak."
+                    )
+            self._downloaded_media[key] = (f, media_type)
+        return value
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        uploaded_files = attrs.get('uploaded_files', [])
+        media_keys = attrs.get('media_keys', [])
 
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
-            return value
+            return attrs
 
         plan = request.user.current_plan
         if not plan:
-            return value
+            return attrs
 
-        photos = [f for f in value if not is_video_file(f.name)]
-        videos = [f for f in value if is_video_file(f.name)]
+        total_photos = sum(1 for f in uploaded_files if not is_video_file(f.name)) + \
+                       sum(1 for k in media_keys if not is_video_file(k))
+        total_videos = sum(1 for f in uploaded_files if is_video_file(f.name)) + \
+                       sum(1 for k in media_keys if is_video_file(k))
 
         existing_photos = 0
         existing_videos = 0
@@ -129,26 +185,40 @@ class ListingCreateSerializer(ModelSerializer):
             existing_photos = self.instance.media.filter(media_type='image').count()
             existing_videos = self.instance.media.filter(media_type='video').count()
 
-        if existing_photos + len(photos) > plan.max_photos_per_listing:
+        if existing_photos + total_photos > plan.max_photos_per_listing:
             raise serializers.ValidationError(
                 f"Tarifingiz bo'yicha e'lon uchun maksimal {plan.max_photos_per_listing} "
                 "ta rasm yuklash mumkin."
             )
-        if existing_videos + len(videos) > plan.max_videos_per_listing:
+        if existing_videos + total_videos > plan.max_videos_per_listing:
             raise serializers.ValidationError(
                 f"Tarifingiz bo'yicha e'lon uchun maksimal {plan.max_videos_per_listing} "
                 "ta video yuklash mumkin."
             )
-        return value
+        return attrs
 
     def create(self, validated_data):
         uploaded_files = validated_data.pop('uploaded_files', [])
+        media_keys = validated_data.pop('media_keys', [])
         listing = Listing.objects.create(**validated_data)
-        for index, file in enumerate(uploaded_files):
+
+        sort_order = 0
+        for file in uploaded_files:
             media_type = 'video' if is_video_file(file.name) else 'image'
             ListingMedia.objects.create(
-                listing=listing, file=file, media_type=media_type, sort_order=index
+                listing=listing, file=file, media_type=media_type, sort_order=sort_order
             )
+            sort_order += 1
+
+        for key in media_keys:
+            media_type = self._downloaded_media.get(key, (None, 'image'))[1]
+            media_obj = ListingMedia(
+                listing=listing, media_type=media_type, sort_order=sort_order
+            )
+            media_obj.file.name = key
+            media_obj.save()
+            sort_order += 1
+
         return listing
 
 
@@ -162,36 +232,69 @@ class FavoriteSerializer(ModelSerializer):
 
 class ReelSerializer(ModelSerializer):
     user = SerializerMethodField()
+    video_key = serializers.CharField(max_length=500, write_only=True, required=False)
+    video = serializers.FileField(required=False, allow_null=True)
 
     class Meta:
         model = Reel
-        fields = ('id', 'user', 'listing', 'video', 'caption', 'view_count', 'thumbnail', 'created_at')
+        fields = ('id', 'user', 'listing', 'video', 'video_key', 'caption', 'view_count', 'thumbnail', 'created_at')
         read_only_fields = ('thumbnail',)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._downloaded_video = None
 
     def get_user(self, obj):
         from .user import UserPublicSerializer
         return UserPublicSerializer(obj.user).data
 
-    def validate_video(self, value):
-        size_mb = value.size / (1024 * 1024)
-        if size_mb > MAX_VIDEO_SIZE_MB:
-            raise serializers.ValidationError(
-                f"Video hajmi {MAX_VIDEO_SIZE_MB}MB dan oshmasligi kerak."
-            )
-        try:
-            duration = get_video_duration_seconds(value)
-        except VideoProcessingError:
-            raise serializers.ValidationError(
-                "Video faylni tahlil qilib bo'lmadi — fayl buzilgan bo'lishi mumkin."
-            )
-        if duration > MAX_VIDEO_DURATION_SECONDS:
-            raise serializers.ValidationError(
-                f"Video davomiyligi {MAX_VIDEO_DURATION_SECONDS} soniyadan oshmasligi kerak."
-            )
-        return value
+    def validate(self, attrs):
+        video = attrs.get('video')
+        video_key = attrs.get('video_key')
+
+        if (not video and not video_key) or (video and video_key):
+            raise serializers.ValidationError("video yoki video_key dan faqat bittasi berilishi kerak.")
+
+        if video_key:
+            from apps.utils.storage import delete_from_minio, download_from_minio
+            try:
+                f = download_from_minio(video_key)
+            except ValueError as exc:
+                delete_from_minio(video_key)
+                raise serializers.ValidationError(str(exc))
+
+            size_mb = f.size / (1024 * 1024)
+            if size_mb > MAX_VIDEO_SIZE_MB:
+                delete_from_minio(video_key)
+                raise serializers.ValidationError(
+                    f"Video hajmi {MAX_VIDEO_SIZE_MB}MB dan oshmasligi kerak."
+                )
+            try:
+                duration = get_video_duration_seconds(f)
+            except VideoProcessingError:
+                delete_from_minio(video_key)
+                raise serializers.ValidationError(
+                    "Video faylni tahlil qilib bo'lmadi — fayl buzilgan bo'lishi mumkin."
+                )
+            if duration > MAX_VIDEO_DURATION_SECONDS:
+                delete_from_minio(video_key)
+                raise serializers.ValidationError(
+                    f"Video davomiyligi {MAX_VIDEO_DURATION_SECONDS} soniyadan oshmasligi kerak."
+                )
+            self._downloaded_video = f
+
+        return attrs
 
     def create(self, validated_data):
-        instance = super().create(validated_data)
+        video_key = validated_data.pop('video_key', None)
+        if video_key:
+            validated_data.pop('video', None)
+            instance = super().create(validated_data)
+            instance.video.name = video_key
+            instance.save(update_fields=['video'])
+        else:
+            instance = super().create(validated_data)
+
         try:
             thumbnail_file = generate_thumbnail_file(instance.video)
             instance.thumbnail.save(thumbnail_file.name, thumbnail_file, save=True)

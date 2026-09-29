@@ -1,3 +1,4 @@
+from django.contrib.gis.db.models import PointField
 from django.db.models.deletion import CASCADE, SET_NULL
 from django.db.models.fields import (
     BooleanField,
@@ -40,6 +41,7 @@ class Listing(BaseModel):
     listing_type = CharField(max_length=10, choices=TYPE_CHOICES, default="normal")
     lat = FloatField()
     lng = FloatField()
+    location = PointField(geography=True, null=True, blank=True, srid=4326)
     address_text = CharField(max_length=255)
     view_count = IntegerField(default=0)
     expires_at = DateTimeField()
@@ -50,6 +52,12 @@ class Listing(BaseModel):
     reel_video = FileField(upload_to="listings/reels/", null=True, blank=True)
     reel_thumbnail = ImageField(upload_to="listings/reels/thumbnails/", null=True, blank=True)
     relisted_at = DateTimeField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        from django.contrib.gis.geos import Point
+        if self.lat is not None and self.lng is not None:
+            self.location = Point(self.lng, self.lat, srid=4326)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.title

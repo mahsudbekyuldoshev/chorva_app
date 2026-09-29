@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework import serializers
 
 from apps.models import Category, Listing
@@ -134,7 +135,10 @@ class ProductCreateSerializer(serializers.ModelSerializer):
 
         from apps.models import PromoCode
         request = self.context["request"]
-        promo = PromoCode.objects.filter(code=value, user=request.user, used=False).exclude(expires_at__lt=timezone.now()).first()
+        promo = PromoCode.objects.filter(
+            Q(expires_at__isnull=True) | Q(expires_at__gte=timezone.now()),
+            code=value, user=request.user, used=False
+        ).first()
         if not promo:
             raise serializers.ValidationError(
                 "Promo kod topilmadi, sizga tegishli emas, allaqachon ishlatilgan yoki muddati o'tgan."
@@ -178,7 +182,10 @@ class ProductCreateSerializer(serializers.ModelSerializer):
             from django.utils import timezone
 
             from apps.models import PromoCode
-            promo = PromoCode.objects.filter(code=promo_code, user=request.user, used=False).exclude(expires_at__lt=timezone.now()).first()
+            promo = PromoCode.objects.filter(
+                Q(expires_at__isnull=True) | Q(expires_at__gte=timezone.now()),
+                code=promo_code, user=request.user, used=False
+            ).first()
             if not promo:
                 raise serializers.ValidationError("Promo kod endi yaroqsiz.")
             if promo.reward == PromoCode.Reward.FREE_TOP_PLACEMENT:
