@@ -17,6 +17,12 @@ def test_plan_list_is_public(api_client):
     assert response.status_code == 200
     assert len(response.data) == 1
 
+
+@pytest.mark.django_db
+def test_subscription_tiers_alias(api_client):
+    response = api_client.get(reverse('subscription-tiers-list'))
+    assert response.status_code == 200
+
 @pytest.mark.django_db
 def test_new_user_gets_free_subscription(api_client):
     Plan.objects.create(

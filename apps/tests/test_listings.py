@@ -490,3 +490,91 @@ def test_listing_combined_uploaded_files_and_media_keys_exceeds_limits(mock_down
     response = api_client.post(reverse('listing-list'), data, format="multipart")
 
     assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_listing_map_radius_filtering(api_client, verified_user, category):
+    Listing.objects.create(
+        user=verified_user, category=category, title="Tashkent Listing", description="D",
+        price=100, lat=41.311081, lng=69.240562, address_text="Tashkent", status="active",
+        expires_at=timezone.now() + timedelta(days=30),
+    )
+    Listing.objects.create(
+        user=verified_user, category=category, title="Samarkand Listing", description="D",
+        price=100, lat=39.6542, lng=66.9597, address_text="Samarkand", status="active",
+        expires_at=timezone.now() + timedelta(days=30),
+    )
+
+    response = api_client.get(reverse('listing-map'), {
+        "lat": 41.311081, "lng": 69.240562, "radius_km": 20
+    })
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.data]
+    assert "Tashkent Listing" in titles
+    assert "Samarkand Listing" not in titles
+
+
+@pytest.mark.django_db
+def test_listing_map_bounding_box_filtering(api_client, verified_user, category):
+    Listing.objects.create(
+        user=verified_user, category=category, title="Inside Box", description="D",
+        price=100, lat=41.311081, lng=69.240562, address_text="Tashkent", status="active",
+        expires_at=timezone.now() + timedelta(days=30),
+    )
+    Listing.objects.create(
+        user=verified_user, category=category, title="Outside Box", description="D",
+        price=100, lat=39.6542, lng=66.9597, address_text="Samarkand", status="active",
+        expires_at=timezone.now() + timedelta(days=30),
+    )
+
+    response = api_client.get(reverse('listing-map'), {
+        "min_lat": 41.0, "max_lat": 42.0, "min_lng": 69.0, "max_lng": 70.0
+    })
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.data]
+    assert "Inside Box" in titles
+    assert "Outside Box" not in titles
+
+
+@pytest.mark.django_db
+def test_listing_map_null_location_excluded(api_client, verified_user, category):
+    l = Listing.objects.create(
+        user=verified_user, category=category, title="No Location Listing", description="D",
+        price=100, lat=41.311081, lng=69.240562, address_text="Tashkent", status="active",
+        expires_at=timezone.now() + timedelta(days=30),
+    )
+    Listing.objects.filter(id=l.id).update(location=None)
+
+    response = api_client.get(reverse('listing-map'), {
+        "lat": 41.311081, "lng": 69.240562, "radius_km": 50
+    })
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.data]
+    assert "No Location Listing" not in titles
+
+
+@pytest.mark.django_db
+def test_listing_list_ordering_distance(api_client, verified_user, category):
+    Listing.objects.create(
+        user=verified_user, category=category, title="Far Listing", description="D",
+        price=100, lat=41.45, lng=69.40, address_text="Far", status="active",
+        expires_at=timezone.now() + timedelta(days=30),
+    )
+    Listing.objects.create(
+        user=verified_user, category=category, title="Near Listing", description="D",
+        price=100, lat=41.312, lng=69.241, address_text="Near", status="active",
+        expires_at=timezone.now() + timedelta(days=30),
+    )
+
+    response = api_client.get(reverse('listing-list'), {
+        "lat": 41.311081, "lng": 69.240562, "ordering": "distance"
+    })
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.data]
+    assert titles.index("Near Listing") < titles.index("Far Listing")
+
+
+@pytest.mark.django_db
+def test_listing_list_ordering_distance_without_lat_lng_fails(api_client):
+    response = api_client.get(reverse('listing-list'), {"ordering": "distance"})
+    assert response.status_code == 400

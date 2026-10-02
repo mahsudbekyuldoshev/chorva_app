@@ -38,3 +38,6 @@ class NotificationMarkReadView(UpdateAPIView):
         notification.is_read = True
         notification.save()
         return Response({"status": "marked as read"})
+
+    def post(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)

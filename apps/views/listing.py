@@ -1,6 +1,8 @@
 from datetime import timedelta
-from math import asin, cos, radians, sin, sqrt
 
+from django.contrib.gis.db.models.functions import Distance
+from django.contrib.gis.geos import Point
+from django.contrib.gis.measure import D
 from django.db.models import Case, IntegerField, Value, When
 from django.utils import timezone
 from drf_spectacular.utils import (
@@ -29,16 +31,6 @@ from apps.serializers import (
 )
 
 
-def haversine(lon1, lat1, lon2, lat2):
-    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-    dlon = lon2 - lon1
-    dlat = lat2 - lat1
-    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
-    c = 2 * asin(sqrt(a))
-    r = 6371
-    return c * r
-
-
 @extend_schema(
     summary="Kategoriyalar ro'yxati",
     responses={200: CategorySerializer(many=True)},
@@ -53,6 +45,14 @@ class CategoryListView(generics.ListAPIView):
 @extend_schema_view(
     list=extend_schema(
         summary="E'lonlar ro'yxatini olish (faqat faol e'lonlar)",
+        parameters=[
+            OpenApiParameter("category", OpenApiTypes.UUID, OpenApiParameter.QUERY, description="Kategoriya ID"),
+            OpenApiParameter("min_price", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Minimal narx"),
+            OpenApiParameter("max_price", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Maksimal narx"),
+            OpenApiParameter("ordering", OpenApiTypes.STR, OpenApiParameter.QUERY, description="Saralash: price, -price, created_at, -created_at, distance"),
+            OpenApiParameter("lat", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Kenglik (masofa bo'yicha saralash uchun)"),
+            OpenApiParameter("lng", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Uzunlik (masofa bo'yicha saralash uchun)"),
+        ],
         responses={200: ListingListSerializer(many=True)},
         tags=["Listings"],
     ),
@@ -105,11 +105,15 @@ class CategoryListView(generics.ListAPIView):
         tags=["Listings"],
     ),
     map=extend_schema(
-        summary="Xaritada e'lonlarni ko'rish (radius bo'yicha)",
+        summary="Xaritada e'lonlarni ko'rish (radius yoki bounding box bo'yicha)",
         parameters=[
             OpenApiParameter("lat", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Markaziy nuqta kengligi"),
             OpenApiParameter("lng", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Markaziy nuqta uzunligi"),
             OpenApiParameter("radius_km", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Radius (km), standart 10"),
+            OpenApiParameter("min_lat", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Bounding box min kenglik"),
+            OpenApiParameter("max_lat", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Bounding box max kenglik"),
+            OpenApiParameter("min_lng", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Bounding box min uzunlik"),
+            OpenApiParameter("max_lng", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Bounding box max uzunlik"),
         ],
         responses={200: ListingListSerializer(many=True)},
         tags=["Listings"],
@@ -159,6 +163,20 @@ class ListingViewSet(ModelViewSet):
 
             ordering = params.get("ordering")
             allowed_orderings = {"price", "-price", "created_at", "-created_at"}
+
+            lat = params.get("lat")
+            lng = params.get("lng")
+            if lat and lng:
+                try:
+                    lat_val, lng_val = float(lat), float(lng)
+                    center = Point(lng_val, lat_val, srid=4326)
+                    queryset = queryset.annotate(distance=Distance("location", center))
+                    allowed_orderings.add("distance")
+                except ValueError:
+                    raise ValidationError({"lat": "lat/lng noto'g'ri formatda."})
+            elif ordering == "distance":
+                raise ValidationError("Masofa bo'yicha saralash uchun lat va lng berilishi shart.")
+
             secondary_ordering = ordering if ordering in allowed_orderings else "-created_at"
 
             return queryset.order_by("type_rank", secondary_ordering)
@@ -227,21 +245,40 @@ class ListingViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"])
     def map(self, request):
-        lat = request.query_params.get("lat")
-        lng = request.query_params.get("lng")
-        radius = float(request.query_params.get("radius_km", 10))
-
         queryset = Listing.objects.filter(status="active")
 
-        if lat and lng:
-            lat = float(lat)
-            lng = float(lng)
-            all_listings = list(queryset)
-            filtered_ids = [
-                item.id for item in all_listings
-                if haversine(lng, lat, item.lng, item.lat) <= radius
-            ]
-            queryset = queryset.filter(id__in=filtered_ids)
+        min_lat = request.query_params.get("min_lat")
+        max_lat = request.query_params.get("max_lat")
+        min_lng = request.query_params.get("min_lng")
+        max_lng = request.query_params.get("max_lng")
+
+        if min_lat and max_lat and min_lng and max_lng:
+            try:
+                min_lat, max_lat = float(min_lat), float(max_lat)
+                min_lng, max_lng = float(min_lng), float(max_lng)
+            except ValueError:
+                raise ValidationError("Bounding box koordinatalari noto'g'ri formatda.")
+            queryset = queryset.filter(
+                lat__gte=min_lat, lat__lte=max_lat,
+                lng__gte=min_lng, lng__lte=max_lng,
+            )
+        else:
+            lat = request.query_params.get("lat")
+            lng = request.query_params.get("lng")
+            try:
+                radius_km = float(request.query_params.get("radius_km", 10))
+            except ValueError:
+                raise ValidationError("radius_km noto'g'ri formatda.")
+
+            if lat and lng:
+                try:
+                    lat, lng = float(lat), float(lng)
+                except ValueError:
+                    raise ValidationError("lat/lng noto'g'ri formatda.")
+                center = Point(lng, lat, srid=4326)
+                queryset = queryset.filter(
+                    location__distance_lte=(center, D(km=radius_km))
+                ).annotate(distance=Distance("location", center)).order_by("distance")
 
         serializer = ListingListSerializer(queryset, many=True, context={"request": request})
         return Response(serializer.data)

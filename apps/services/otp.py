@@ -24,3 +24,9 @@ def verify_otp(phone, code):
         cache.delete(f"otp_{phone}")
         return True
     return False
+
+def normalize_phone(phone):
+    if not phone:
+        return ""
+    return str(phone).strip()
+

@@ -46,3 +46,24 @@ def test_mark_all_read(auth_client, user):
     assert response.status_code == 204
     assert Notification.objects.filter(user=user, is_read=False).count() == 0
 
+
+@pytest.mark.django_db
+def test_mark_read_with_post_and_patch(auth_client, user):
+    n = Notification.objects.create(user=user, type="message", title="A", is_read=False)
+    auth_client.force_authenticate(user=user)
+
+    response = auth_client.post(reverse('notification-read', kwargs={'pk': n.id}))
+    assert response.status_code == 200
+    n.refresh_from_db()
+    assert n.is_read is True
+
+
+@pytest.mark.django_db
+def test_mark_all_read_with_post(auth_client, user):
+    Notification.objects.create(user=user, type="message", title="A", is_read=False)
+    auth_client.force_authenticate(user=user)
+
+    response = auth_client.post(reverse('notification-read-all'))
+    assert response.status_code == 204
+    assert Notification.objects.filter(user=user, is_read=False).count() == 0
+

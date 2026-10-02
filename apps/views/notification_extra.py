@@ -22,3 +22,6 @@ class NotificationMarkAllReadView(APIView):
     def patch(self, request):
         Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
         return Response(status=204)
+
+    def post(self, request):
+        return self.patch(request)

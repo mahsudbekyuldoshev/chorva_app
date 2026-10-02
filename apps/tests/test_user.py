@@ -18,6 +18,19 @@ def test_follow_toggle_flow(api_client, auth_client, user, other_user):
     assert response.status_code == status.HTTP_200_OK
     assert not Follow.objects.filter(follower=user, following=other_user).exists()
 
+
+@pytest.mark.django_db
+def test_follow_by_phone_flow(api_client, auth_client, user, other_user):
+    url = reverse('follow-toggle-phone', kwargs={'phone': other_user.phone})
+    response = auth_client.post(url)
+    assert response.status_code == status.HTTP_201_CREATED
+    assert Follow.objects.filter(follower=user, following=other_user).exists()
+
+    # Delete (unfollow)
+    response = auth_client.delete(url)
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+    assert not Follow.objects.filter(follower=user, following=other_user).exists()
+
 @pytest.mark.django_db
 def test_cannot_follow_self(auth_client, user):
     url = reverse('follow-toggle', kwargs={'id': user.id})

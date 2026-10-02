@@ -83,3 +83,47 @@ class FollowToggleView(APIView):
             return Response({'message': 'Unfollowed'}, status=status.HTTP_200_OK)
 
         return Response({'message': 'Followed'}, status=status.HTTP_201_CREATED)
+
+
+class FollowByPhoneToggleView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Telefon raqam bo'yicha foydalanuvchini kuzatish / kuzatishni bekor qilish",
+        request=None,
+        responses={
+            200: OpenApiResponse(description="Kuzatish bekor qilindi (unfollowed)"),
+            201: OpenApiResponse(description="Foydalanuvchi kuzatila boshlandi (followed)"),
+            400: OpenApiResponse(description="O'zingizni kuzatib bo'lmaydi"),
+            404: OpenApiResponse(description="Foydalanuvchi topilmadi"),
+        },
+        tags=["Users"],
+    )
+    def post(self, request, phone):
+        from apps.services.otp import normalize_phone
+        normalized = normalize_phone(phone)
+        try:
+            target_user = User.objects.get(phone=normalized)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if target_user == request.user:
+            return Response({'error': 'You cannot follow yourself'}, status=status.HTTP_400_BAD_REQUEST)
+        follow, created = Follow.objects.get_or_create(follower=request.user, following=target_user)
+
+        if not created:
+            follow.delete()
+            return Response({'message': 'Unfollowed'}, status=status.HTTP_200_OK)
+
+        return Response({'message': 'Followed'}, status=status.HTTP_201_CREATED)
+
+    def delete(self, request, phone):
+        from apps.services.otp import normalize_phone
+        normalized = normalize_phone(phone)
+        try:
+            target_user = User.objects.get(phone=normalized)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        Follow.objects.filter(follower=request.user, following=target_user).delete()
+        return Response({'message': 'Unfollowed'}, status=status.HTTP_204_NO_CONTENT)

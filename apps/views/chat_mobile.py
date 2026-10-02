@@ -82,3 +82,6 @@ class ChatMarkReadView(APIView):
             sender=request.user
         ).update(read_at=timezone.now())
         return Response(status=204)
+
+    def post(self, request, conversation_id):
+        return self.patch(request, conversation_id)

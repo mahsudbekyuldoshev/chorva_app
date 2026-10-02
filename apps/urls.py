@@ -19,7 +19,7 @@ from apps.views.notification_extra import NotificationMarkAllReadView, Notificat
 from apps.views.plan import PlanListView
 from apps.views.product import ProductViewSet
 from apps.views.promo_code import PromoCodeCheckView, PromoCodeMineListView
-from apps.views.user import FollowToggleView, MeView, UserPublicDetailView
+from apps.views.user import FollowByPhoneToggleView, FollowToggleView, MeView, UserPublicDetailView
 
 router = DefaultRouter()
 router.register(r'listings', ListingViewSet, basename='listing')
@@ -35,6 +35,7 @@ urlpatterns = [
     path('users/me/', MeView.as_view(), name='me'),
     path('users/<uuid:id>/', UserPublicDetailView.as_view(), name='user-detail'),
     path('users/<uuid:id>/follow/', FollowToggleView.as_view(), name='follow-toggle'),
+    path('users/phone/<str:phone>/follow/', FollowByPhoneToggleView.as_view(), name='follow-toggle-phone'),
 
     # Listings & Categories
     path('listings/map/', ListingViewSet.as_view({'get': 'map'}), name='listing-map'),
@@ -60,6 +61,7 @@ urlpatterns = [
     path('notifications/read-all/', NotificationMarkAllReadView.as_view(), name='notification-read-all'),
     path('notifications/<uuid:pk>/read/', NotificationMarkReadView.as_view(), name='notification-read'),
     path('plans/', PlanListView.as_view(), name='plan-list'),
+    path('subscription-tiers/', PlanListView.as_view(), name='subscription-tiers-list'),
 
     # Promo Codes
     path('promo-codes/mine/', PromoCodeMineListView.as_view(), name='promo-code-mine'),
