@@ -210,35 +210,56 @@ class UserStatsView(APIView):
         tags=["Users"],
     )
     def get(self, request):
-        days = request.query_params.get("days", "30")
+        days_param = request.query_params.get("days", "30")
         try:
-            int(days)
+            days = int(days_param)
         except ValueError:
-            pass
+            raise ValidationError({"days": "Invalid integer value."})
 
-        active_listings_count = request.user.listings.filter(status="active").count()
+        if not (1 <= days <= 365):
+            raise ValidationError({"days": "Must be between 1 and 365."})
+
+        listings = request.user.listings.prefetch_related("media", "reels").all()
+        active_listings_count = listings.filter(status="active").count()
+
+        listing_views = sum(l.view_count for l in listings)
+        reel_views = sum(r.view_count for l in listings for r in l.reels.all())
+
+        from django.db.models import Q
+
+        from apps.models import Conversation
+        chats_count = Conversation.objects.filter(Q(buyer=request.user) | Q(seller=request.user)).count()
+
+        sub = request.user.active_subscription
+        has_contact_stats = bool(sub and sub.plan and sub.plan.has_contact_stats)
+
+        per_listing = []
+        for listing in listings:
+            l_reel_views = sum(r.view_count for r in listing.reels.all())
+            has_reel = listing.reels.exists()
+            first_media = listing.media.first()
+            image_url = first_media.file.url if first_media else None
+            per_listing.append({
+                "id": str(listing.id),
+                "title": getattr(listing, "title", ""),
+                "views": listing.view_count,
+                "reel_views": l_reel_views,
+                "has_reel": has_reel,
+                "image": image_url,
+            })
 
         data = {
             "totals": {
-                "listing_views": 0,
-                "reel_views": 0,
+                "listing_views": listing_views,
+                "reel_views": reel_views,
                 "active_listings": active_listings_count,
                 "profile_views": 0,
                 "contact_clicks": 0,
-                "chats": 0,
+                "chats": chats_count,
             },
-            "has_contact_stats": False,
+            "has_contact_stats": has_contact_stats,
             "daily": [],
-            "per_listing": [],
+            "per_listing": per_listing,
         }
-        for listing in request.user.listings.all():
-            data["per_listing"].append({
-                "id": str(listing.id),
-                "title": getattr(listing, "title", ""),
-                "views": 0,
-                "reel_views": 0,
-                "has_reel": False,
-                "image": listing.images.first().image.url if listing.images.exists() else None,
-            })
         return Response(data)
 

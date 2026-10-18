@@ -139,12 +139,75 @@ def test_following_list_unauthenticated(api_client):
 
 
 @pytest.mark.django_db
-def test_stats_me_success(auth_client, user):
+def test_stats_me_success_default_days(auth_client, user, category):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.models import Listing
+    Listing.objects.create(
+        user=user, category=category, title="My Listing", price=10000,
+        lat=0, lng=0, address_text="Tashkent", view_count=10, status="active",
+        expires_at=timezone.now() + timedelta(days=30)
+    )
     url = reverse('user-stats')
     response = auth_client.get(url)
     assert response.status_code == status.HTTP_200_OK
-    assert "totals" in response.data
-    assert "per_listing" in response.data
+    assert response.data["totals"]["listing_views"] == 10
+    assert response.data["totals"]["active_listings"] == 1
+    assert len(response.data["per_listing"]) == 1
+
+
+@pytest.mark.django_db
+def test_stats_me_custom_days_valid(auth_client, user):
+    url = reverse('user-stats') + "?days=7"
+    response = auth_client.get(url)
+    assert response.status_code == status.HTTP_200_OK
+
+    url365 = reverse('user-stats') + "?days=365"
+    response365 = auth_client.get(url365)
+    assert response365.status_code == status.HTTP_200_OK
+
+
+@pytest.mark.django_db
+def test_stats_me_invalid_days(auth_client, user):
+    url = reverse('user-stats') + "?days=0"
+    response = auth_client.get(url)
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    url366 = reverse('user-stats') + "?days=366"
+    response366 = auth_client.get(url366)
+    assert response366.status_code == status.HTTP_400_BAD_REQUEST
+
+    url_abc = reverse('user-stats') + "?days=abc"
+    response_abc = auth_client.get(url_abc)
+    assert response_abc.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
+def test_stats_me_excludes_other_users_listings(auth_client, user, other_user, category):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.models import Listing
+    Listing.objects.create(
+        user=user, category=category, title="My Listing", price=10000,
+        lat=0, lng=0, address_text="Tashkent", view_count=5, status="active",
+        expires_at=timezone.now() + timedelta(days=30)
+    )
+    Listing.objects.create(
+        user=other_user, category=category, title="Other Listing", price=20000,
+        lat=0, lng=0, address_text="Samarkand", view_count=100, status="active",
+        expires_at=timezone.now() + timedelta(days=30)
+    )
+    url = reverse('user-stats')
+    response = auth_client.get(url)
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["totals"]["listing_views"] == 5
+    assert response.data["totals"]["active_listings"] == 1
+    assert len(response.data["per_listing"]) == 1
+    assert response.data["per_listing"][0]["title"] == "My Listing"
 
 
 @pytest.mark.django_db
