@@ -1,4 +1,5 @@
 from django.contrib.gis.db.models import PointField
+from django.db.models import JSONField
 from django.db.models.deletion import CASCADE, SET_NULL
 from django.db.models.fields import (
     BooleanField,
@@ -103,6 +104,7 @@ class Report(BaseModel):
     reporter = ForeignKey(User, CASCADE, related_name="reports")
     target_user = ForeignKey(User, CASCADE, null=True, blank=True)
     target_listing = ForeignKey(Listing, CASCADE, null=True, blank=True)
-    reason = CharField(max_length=20, choices=REASON_CHOICES)
+    reason = CharField(max_length=20, choices=REASON_CHOICES, blank=True, default="")
+    reason_codes = JSONField(default=list, blank=True)
     comment = TextField(blank=True)
     is_resolved = BooleanField(default=False)

@@ -16,8 +16,9 @@ load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = os.getenv("DEBUG", "False") == "True"
+TESTING = "pytest" in sys.modules or "test" in sys.argv
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "chorva-app.onrender.com,localhost,127.0.0.1").split(",")
-if not DEBUG:
+if not DEBUG and not TESTING:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True

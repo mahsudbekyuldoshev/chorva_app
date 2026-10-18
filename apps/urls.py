@@ -19,7 +19,16 @@ from apps.views.notification_extra import NotificationMarkAllReadView, Notificat
 from apps.views.plan import PlanListView
 from apps.views.product import ProductViewSet
 from apps.views.promo_code import PromoCodeCheckView, PromoCodeMineListView
-from apps.views.user import FollowByPhoneToggleView, FollowToggleView, MeView, UserPublicDetailView
+from apps.views.user import (
+    FollowByPhoneToggleView,
+    FollowToggleView,
+    MeView,
+    UserFCMTokenView,
+    UserFollowingListView,
+    UserPublicDetailView,
+    UserReportView,
+    UserStatsView,
+)
 
 router = DefaultRouter()
 router.register(r'listings', ListingViewSet, basename='listing')
@@ -33,6 +42,10 @@ urlpatterns = [
     path('auth/refresh/', MobileTokenRefreshView.as_view(), name='token-refresh'),
     path('auth/logout/', LogoutView.as_view(), name='logout'),
     path('users/me/', MeView.as_view(), name='me'),
+    path('users/report/', UserReportView.as_view(), name='user-report'),
+    path('users/me/fcm-token/', UserFCMTokenView.as_view(), name='user-fcm-token'),
+    path('users/me/following/', UserFollowingListView.as_view(), name='user-following'),
+    path('stats/me/', UserStatsView.as_view(), name='user-stats'),
     path('users/<uuid:id>/', UserPublicDetailView.as_view(), name='user-detail'),
     path('users/<uuid:id>/follow/', FollowToggleView.as_view(), name='follow-toggle'),
     path('users/phone/<str:phone>/follow/', FollowByPhoneToggleView.as_view(), name='follow-toggle-phone'),

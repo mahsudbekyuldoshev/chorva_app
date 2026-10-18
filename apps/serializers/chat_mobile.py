@@ -85,8 +85,10 @@ class ChatCreateSerializer(serializers.Serializer):
     product_id = serializers.UUIDField(required=False, allow_null=True)
 
     def validate_other_phone(self, value):
+        from apps.utils.phone import normalize_phone
+        normalized = normalize_phone(value)
         try:
-            return User.objects.get(phone=value)
+            return User.objects.get(phone=normalized)
         except User.DoesNotExist:
             raise serializers.ValidationError("Foydalanuvchi topilmadi.")
 

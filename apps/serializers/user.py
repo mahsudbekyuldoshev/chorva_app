@@ -1,4 +1,5 @@
-from rest_framework.fields import CharField, SerializerMethodField
+from rest_framework.exceptions import ValidationError
+from rest_framework.fields import CharField, ListField, SerializerMethodField
 from rest_framework.serializers import ModelSerializer, Serializer
 
 from apps.models import User
@@ -113,3 +114,27 @@ class MeSerializer(ModelSerializer):
     def get_plan_expires_at(self, obj):
         sub = obj.active_subscription
         return sub.expires_at if sub else None
+
+
+class UserReportSerializer(Serializer):
+    phone = CharField(max_length=20)
+    reason_codes = ListField(
+        child=CharField(max_length=50),
+        min_length=1,
+    )
+    message = CharField(max_length=1000, required=False, allow_blank=True)
+
+    def validate_phone(self, value):
+        from apps.utils.phone import normalize_phone
+        normalized = normalize_phone(value)
+        from apps.models import User
+        try:
+            return User.objects.get(phone=normalized)
+        except User.DoesNotExist:
+            raise ValidationError("Foydalanuvchi topilmadi.")
+
+
+class FCMTokenSerializer(Serializer):
+    token = CharField(max_length=255)
+
+

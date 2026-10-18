@@ -42,7 +42,7 @@ def test_superuser_login_works(client, django_user_model):
 
 @pytest.mark.django_db
 def test_verify_otp_response_field_names(api_client):
-    cache.set("otp_+998905556677", "1234", timeout=120)
+    cache.set("otp_998905556677", "1234", timeout=120)
 
     response = api_client.post(reverse('verify-otp'), {"phone": "+998905556677", "code": "1234"})
 

@@ -16,9 +16,15 @@ from .base import BaseModel
 
 
 class UserManager(BaseUserManager):
+    def get_by_natural_key(self, phone):
+        from apps.utils.phone import normalize_phone
+        return self.get(phone=normalize_phone(phone))
+
     def create_user(self, phone, password=None, **extra_fields):
         if not phone:
             raise ValueError("The Phone number must be set")
+        from apps.utils.phone import normalize_phone
+        phone = normalize_phone(phone)
         user = self.model(phone=phone, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -38,6 +44,7 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
 
     phone = CharField(max_length=15, unique=True)
     full_name = CharField(max_length=255, blank=True)
+    fcm_token = CharField(max_length=255, blank=True, default="")
     avatar = ImageField(upload_to="avatars/", null=True, blank=True)
     is_verified = BooleanField(default=False)
     is_vip = BooleanField(default=False)
@@ -55,6 +62,9 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     REQUIRED_FIELDS = []
 
     def save(self, *args, **kwargs):
+        if self.phone:
+            from apps.utils.phone import normalize_phone
+            self.phone = normalize_phone(self.phone)
         if self.role == self.Role.SUPER_ADMIN:
             self.is_staff = True
             self.is_superuser = True

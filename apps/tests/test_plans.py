@@ -32,10 +32,10 @@ def test_new_user_gets_free_subscription(api_client):
         listing_duration_days=30, reboost_interval_days=3,
     )
     from django.core.cache import cache
-    cache.set("otp_+998901112233", "1234", timeout=120)
+    cache.set("otp_998901112233", "1234", timeout=120)
     response = api_client.post(reverse('verify-otp'), {"phone": "+998901112233", "code": "1234"})
     assert response.status_code == 200
-    user = User.objects.get(phone="+998901112233")
+    user = User.objects.get(phone="998901112233")
     assert user.current_plan is not None
     assert user.current_plan.slug == "free"
 

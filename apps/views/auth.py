@@ -10,6 +10,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from apps.models import User
 from apps.serializers import RequestOTPSerializer, VerifyOTPSerializer
 from apps.services.otp import generate_otp, verify_otp
+from apps.utils.phone import normalize_phone
 
 
 @extend_schema(
@@ -24,7 +25,7 @@ class RequestOTPView(APIView):
     def post(self, request):
         serializer = RequestOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        phone = serializer.validated_data["phone"]
+        phone = normalize_phone(serializer.validated_data["phone"])
         _, error = generate_otp(phone)
         if error:
             return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
@@ -46,7 +47,7 @@ class VerifyOTPView(APIView):
     def post(self, request):
         serializer = VerifyOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        phone = serializer.validated_data["phone"]
+        phone = normalize_phone(serializer.validated_data["phone"])
         code = serializer.validated_data["code"]
 
         if verify_otp(phone, code):
