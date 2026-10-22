@@ -1,8 +1,12 @@
+from datetime import timedelta
+
 import pytest
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
+from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.models import Follow
+from apps.models import Conversation, Follow, Listing, Plan, Reel, Subscription
 
 
 @pytest.mark.django_db
@@ -60,8 +64,6 @@ def test_public_profile_shape(api_client, user):
 
 @pytest.mark.django_db
 def test_authenticated_request_updates_last_seen(api_client, user):
-    from rest_framework_simplejwt.tokens import RefreshToken
-
     assert user.last_seen_at is None
     refresh = RefreshToken.for_user(user)
     api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
@@ -140,11 +142,6 @@ def test_following_list_unauthenticated(api_client):
 
 @pytest.mark.django_db
 def test_stats_me_success_default_days(auth_client, user, category):
-    from datetime import timedelta
-
-    from django.utils import timezone
-
-    from apps.models import Listing
     Listing.objects.create(
         user=user, category=category, title="My Listing", price=10000,
         lat=0, lng=0, address_text="Tashkent", view_count=10, status="active",
@@ -186,11 +183,6 @@ def test_stats_me_invalid_days(auth_client, user):
 
 @pytest.mark.django_db
 def test_stats_me_excludes_other_users_listings(auth_client, user, other_user, category):
-    from datetime import timedelta
-
-    from django.utils import timezone
-
-    from apps.models import Listing
     Listing.objects.create(
         user=user, category=category, title="My Listing", price=10000,
         lat=0, lng=0, address_text="Tashkent", view_count=5, status="active",
@@ -211,8 +203,55 @@ def test_stats_me_excludes_other_users_listings(auth_client, user, other_user, c
 
 
 @pytest.mark.django_db
+def test_stats_me_has_contact_stats_and_reel_views_and_chats(auth_client, user, other_user, category):
+    plan = Plan.objects.create(
+        name="Business", slug="business", price=100000, billing_period_days=30,
+        max_active_listings=10, max_monthly_new_listings=10,
+        max_photos_per_listing=5, max_videos_per_listing=1,
+        listing_duration_days=30, reboost_interval_days=3, has_view_stats=True, has_contact_stats=True
+    )
+    Subscription.objects.create(user=user, plan=plan, is_active=True)
+
+    listing = Listing.objects.create(
+        user=user, category=category, title="Reel Listing", price=15000,
+        lat=0, lng=0, address_text="Tashkent", view_count=20, status="active",
+        expires_at=timezone.now() + timedelta(days=30)
+    )
+    Reel.objects.create(user=user, listing=listing, video="reels/test.mp4", view_count=15)
+    Conversation.objects.create(buyer=other_user, seller=user, listing=listing)
+
+    url = reverse('user-stats')
+    response = auth_client.get(url)
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["has_contact_stats"] is True
+    assert response.data["totals"]["reel_views"] == 15
+    assert response.data["totals"]["chats"] == 1
+    assert response.data["per_listing"][0]["reel_views"] == 15
+    assert response.data["per_listing"][0]["has_reel"] is True
+
+
+@pytest.mark.django_db
+def test_stats_me_query_count_optimization(auth_client, user, category):
+    for i in range(5):
+        Listing.objects.create(
+            user=user, category=category, title=f"Listing {i}", price=10000,
+            lat=0, lng=0, address_text="Tashkent", view_count=i, status="active",
+            expires_at=timezone.now() + timedelta(days=30)
+        )
+
+    url = reverse('user-stats')
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+    with CaptureQueriesContext(connection) as captured:
+        response = auth_client.get(url)
+    assert response.status_code == status.HTTP_200_OK
+    assert len(response.data["per_listing"]) == 5
+    # Query count should be constant regardless of number of listings
+    assert len(captured) <= 15
+
+
+@pytest.mark.django_db
 def test_stats_me_unauthenticated(api_client):
     url = reverse('user-stats')
     response = api_client.get(url)
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
-

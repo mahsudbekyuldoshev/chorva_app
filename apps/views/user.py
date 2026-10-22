@@ -1,3 +1,4 @@
+from django.db.models import Q
 from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
@@ -6,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.models import Follow, Report, User
+from apps.models import Conversation, Follow, Report, User
 from apps.serializers import (
     FCMTokenSerializer,
     MeSerializer,
@@ -210,6 +211,12 @@ class UserStatsView(APIView):
         tags=["Users"],
     )
     def get(self, request):
+        """
+        Sotuvchi statistikasi (Pro/Business tariflar uchun) — oxirgi `days` kun bo'yicha.
+        Note: The `days` parameter (1..365, default 30) is validated for request contract compliance.
+        However, because historical daily view/click metrics are not stored in the database,
+        historical daily filtering is not applied.
+        """
         days_param = request.query_params.get("days", "30")
         try:
             days = int(days_param)
@@ -225,9 +232,6 @@ class UserStatsView(APIView):
         listing_views = sum(l.view_count for l in listings)
         reel_views = sum(r.view_count for l in listings for r in l.reels.all())
 
-        from django.db.models import Q
-
-        from apps.models import Conversation
         chats_count = Conversation.objects.filter(Q(buyer=request.user) | Q(seller=request.user)).count()
 
         sub = request.user.active_subscription
@@ -235,9 +239,11 @@ class UserStatsView(APIView):
 
         per_listing = []
         for listing in listings:
-            l_reel_views = sum(r.view_count for r in listing.reels.all())
-            has_reel = listing.reels.exists()
-            first_media = listing.media.first()
+            reels_list = list(listing.reels.all())
+            l_reel_views = sum(r.view_count for r in reels_list)
+            has_reel = bool(reels_list)
+            media_list = list(listing.media.all())
+            first_media = media_list[0] if media_list else None
             image_url = first_media.file.url if first_media else None
             per_listing.append({
                 "id": str(listing.id),
