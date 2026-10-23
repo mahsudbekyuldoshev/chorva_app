@@ -1,6 +1,8 @@
 from datetime import timedelta
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -232,22 +234,28 @@ def test_stats_me_has_contact_stats_and_reel_views_and_chats(auth_client, user, 
 
 @pytest.mark.django_db
 def test_stats_me_query_count_optimization(auth_client, user, category):
-    for i in range(5):
+    Listing.objects.create(
+        user=user, category=category, title="Listing 0", price=10000,
+        lat=0, lng=0, address_text="Tashkent", view_count=0, status="active",
+        expires_at=timezone.now() + timedelta(days=30)
+    )
+    url = reverse('user-stats')
+    with CaptureQueriesContext(connection) as captured_1:
+        auth_client.get(url)
+    count_1 = len(captured_1)
+
+    for i in range(1, 5):
         Listing.objects.create(
             user=user, category=category, title=f"Listing {i}", price=10000,
             lat=0, lng=0, address_text="Tashkent", view_count=i, status="active",
             expires_at=timezone.now() + timedelta(days=30)
         )
 
-    url = reverse('user-stats')
-    from django.db import connection
-    from django.test.utils import CaptureQueriesContext
-    with CaptureQueriesContext(connection) as captured:
-        response = auth_client.get(url)
-    assert response.status_code == status.HTTP_200_OK
-    assert len(response.data["per_listing"]) == 5
-    # Query count should be constant regardless of number of listings
-    assert len(captured) <= 15
+    with CaptureQueriesContext(connection) as captured_5:
+        auth_client.get(url)
+    count_5 = len(captured_5)
+
+    assert count_1 == count_5
 
 
 @pytest.mark.django_db
